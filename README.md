@@ -83,22 +83,28 @@ full tables and metric definitions in `docs/PROXY_RESULTS_n200.md`. tau-b is
 Kendall correlation with the GT order (+1 identical, -1 reversed); "top" is the
 predicted best teacher; P = bootstrap probability the top teacher is correct.
 
-| proxy | tau-b | top | P(top) |
-|---|---|---|---|
-| traj_length (more) | +0.91 | DS | 1.00 |
-| tor | +0.91 | DS | 0.82 |
-| teacher_bench | -0.91 | CL | 0.00 |
-| error_retry | -0.91 | CL | 0.00 |
-| cmd_error more, gpt-oss / qwen | +0.55 / +0.91 | GLM / DS | 0.43 / 0.50 |
-| egs_post | -0.18 | Q35 | 0.00 |
-| egs_loop | +0.55 | Q35 | 0.11 |
-| global_nll (GRAPE) | -0.18 | Q35 | 0.00 |
-| local_nll k1 / k2,4,8 | -0.55 / -0.18 | Q35 | 0.00 |
-| aslec_drop / aslec_casl | +0.18 / -0.18 | Q35 | 0.00 |
-| rsr | +0.18 | Q35 | 0.00 |
-| scas | +0.18 | Q35 | 0.00 |
-| grace | +0.55 | Q35 | 0.35 |
-| SCRF-unrecovered, gpt-oss / qwen | +0.55 / +0.18 | Q35 | 0.24 / 0.07 |
+GT: DS > {GLM ≈ Q35} > CL.
+
+| proxy | tau-b | top | P(top) | predicted order |
+|---|---|---|---|---|
+| traj_length (more) | +0.91 | DS | 1.00 | DS > Q35 > GLM > CL |
+| tor | +0.91 | DS | 0.82 | DS > Q35 > GLM > CL |
+| teacher_bench | -0.91 | CL | 0.00 | CL > GLM > Q35 > DS |
+| error_retry | -0.91 | CL | 0.00 | CL > Q35 > GLM > DS |
+| cmd_error more (gpt-oss) | +0.55 | GLM | 0.43 | GLM > DS > Q35 > CL |
+| cmd_error more (qwen) | +0.91 | DS | 0.50 | DS > GLM > Q35 > CL |
+| egs_post | -0.18 | Q35 | 0.00 | Q35 > GLM > CL > DS |
+| egs_loop | +0.55 | Q35 | 0.11 | Q35 > DS > GLM > CL |
+| global_nll (GRAPE) | -0.18 | Q35 | 0.00 | Q35 > GLM > CL > DS |
+| local_nll k1 | -0.55 | Q35 | 0.00 | Q35 > CL > GLM > DS |
+| local_nll k2,4,8 | -0.18 | Q35 | 0.00 | Q35 > GLM > CL > DS |
+| aslec_drop | +0.18 | Q35 | 0.00 | Q35 > GLM > DS > CL |
+| aslec_casl | -0.18 | Q35 | 0.00 | Q35 > GLM > CL > DS |
+| rsr | +0.18 | Q35 | 0.00 | Q35 > GLM > DS > CL |
+| scas | +0.18 | Q35 | 0.00 | Q35 > GLM > DS > CL |
+| grace | +0.55 | Q35 | 0.35 | Q35 > DS > GLM > CL |
+| SCRF-unrecovered (gpt-oss) | +0.55 | Q35 | 0.24 | Q35 > DS > GLM > CL |
+| SCRF-unrecovered (qwen) | +0.18 | Q35 | 0.07 | Q35 > GLM > DS > CL |
 
 ## Additional findings
 
