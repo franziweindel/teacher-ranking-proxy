@@ -1,0 +1,3 @@
+work/
+.venv/
+.pytest_cache/

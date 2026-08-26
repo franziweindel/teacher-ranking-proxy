@@ -1,0 +1,4 @@
+# runtime
+pypdf>=4
+# tests
+pytest>=8

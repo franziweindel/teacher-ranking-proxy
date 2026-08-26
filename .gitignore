@@ -1,0 +1,10 @@
+.env
+litmine/.venv/
+litmine/venv/
+litmine/work/
+__pycache__/
+runs/
+upstream/
+.venv/
+venv/
+venv_plot/

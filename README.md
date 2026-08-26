@@ -1,0 +1,134 @@
+# Teacher-ranking proxy
+
+**Goal:** compare existing proxies from the instruction / reasoning-distillation
+literature that aim to predict which teacher produces the best SFT data for a
+given student, from trajectories only, without running SFT.
+
+## Implemented proxies
+
+- TOR / EGS: https://arxiv.org/pdf/2606.03461
+- GRAPE: https://arxiv.org/pdf/2502.04194
+- LALP (local naturalness): https://arxiv.org/pdf/2510.03988
+- ASLEC: https://arxiv.org/pdf/2604.06834
+- RSR: https://aclanthology.org/2026.acl-long.1950/
+- GRACE: https://arxiv.org/abs/2511.02833
+- SCAS: https://arxiv.org/abs/2605.26872
+- traj_length, teacher_bench, cmd_error (error rate), error_retry: simple controls / the Terminal-Bench 2.0 command-error taxonomy (https://arxiv.org/abs/2601.11868)
+
+Listed in the spec but not implemented: CAR (https://arxiv.org/pdf/2411.07133,
+needs an average reward we do not have with one trajectory per teacher/task),
+LARK (https://arxiv.org/pdf/2605.30651), PerSyn (needs router
+training).
+
+For what each proxy computes and how, see `docs/PROXY_SPEC.md`.
+
+## Proposed proxy for agentic tasks (SCRF)
+
+Hypothesis: a useful teacher is one whose trajectories demonstrate
+recovery behavior in the regions where the target student empirically
+struggles.
+
+Pipeline (same for student and teacher trajectories):
+
+1. Extract (command, output) pairs from the trajectory.
+2. Drop turns Harbor could not execute because the model's response was not valid Terminus-2 JSON (a parse error, no command ran); those are counted separately, not as command errors.
+3. Classify each (command, output) with the Terminal-Bench 2.0 prompt and error taxonomy (11 categories, 91 subcategories) into one error category or "no error".
+4. For the pairs classified as errors, a second LLM-as-judge call decides whether the model recovered, given the failed command and its output plus the next 3 commands and outputs (K=3).
+
+This gives, per agent, a distribution over error categories and, within each, a
+recovered / not-recovered split. A teacher is scored by how well its
+recovered-error demonstrations cover the categories the student fails and does
+not recover from.
+
+Notation, per error category e: q_S(e) = fraction of the student's commands
+that fail with e (student error density); E_T(e) = fraction of the teacher's
+commands that fail with e (teacher error density); R_T(e) = fraction of the
+teacher's e-errors judged recovered (a rate within category e; it ignores how
+many e-errors there are). E_T(e)·R_T(e) = recovered e-errors / total commands =
+how many recovery demonstrations per command the teacher actually provides for
+e. 
+
+Variations currently implemented (each at 11-category and 91-subcategory
+granularity):
+
+- **SCRF-all** = Σ_e q_S(e)·E_T(e)·R_T(e), with q_S(e) over all the student's failed commands. Weights every category the student errs in.
+- **SCRF-unrecovered** = Σ_e q_S(e)·E_T(e)·R_T(e), with q_S(e) counting only the student's failed commands the K=3 judge marked NOT recovered. More targeted than SCRF-all: it weights only the categories the student cannot fix by itself, which is what the hypothesis is about.
+- **SCRF-failed** = Σ_e q_S(e)·E_T(e)·R_T(e), with q_S(e) counting only commands from student trajectories that did not solve the task.
+- **SCRF-KL** = -KL(P_S‖P_T), where P_S(e) = the student's not-recovered errors of category e / all its not-recovered errors, and P_T(e) = the teacher's recovered errors of category e / all its recovered errors (both normalized over categories, pooled at teacher level). Ranks teachers by how well their recovered-error distribution matches where the student gets stuck (`scrf_distribution_rank.py`, which also prints a plain overlap Σ_e P_S(e)·P_T(e) as a cross-check).
+
+
+
+## Preliminary results
+
+How we evaluate: score every teacher's trajectory for a fixed set of matched
+Terminal-Lego tasks, aggregate per teacher, and compare the resulting teacher
+ranking to the published SFT ranking for that student
+(https://arxiv.org/pdf/2606.03461). Student: Qwen3-8B. Teachers and the
+paper's ground-truth ranking for this student:
+
+    DeepSeek-V3.2 > {GLM-5 ≈ Qwen3.5-Plus} > Claude Opus 4.6
+
+200 matched tasks (seed 42), extending to 500 and 1000. n=200 snapshot below;
+full tables and metric definitions in `docs/PROXY_RESULTS_n200.md`. tau-b is
+Kendall correlation with the GT order (+1 identical, -1 reversed); "top" is the
+predicted best teacher; P = bootstrap probability the top teacher is correct.
+
+| proxy | tau-b | top | P(top) |
+|---|---|---|---|
+| traj_length (more) | +0.91 | DS | 1.00 |
+| tor | +0.91 | DS | 0.82 |
+| teacher_bench | -0.91 | CL | 0.00 |
+| error_retry | -0.91 | CL | 0.00 |
+| cmd_error more, gpt-oss / qwen | +0.55 / +0.91 | GLM / DS | 0.43 / 0.50 |
+| egs_post | -0.18 | Q35 | 0.00 |
+| egs_loop | +0.55 | Q35 | 0.11 |
+| global_nll (GRAPE) | -0.18 | Q35 | 0.00 |
+| local_nll k1 / k2,4,8 | -0.55 / -0.18 | Q35 | 0.00 |
+| aslec_drop / aslec_casl | +0.18 / -0.18 | Q35 | 0.00 |
+| rsr | +0.18 | Q35 | 0.00 |
+| scas | +0.18 | Q35 | 0.00 |
+| grace | +0.55 | Q35 | 0.35 |
+| SCRF-unrecovered, gpt-oss / qwen | +0.55 / +0.18 | Q35 | 0.24 / 0.07 |
+
+## Additional findings
+
+- traj_length reproduces the ranking (tau-b +0.91) but that is pure length: DeepSeek writes the longest trajectories. TOR (+0.91) and cmd_error are rates (per action, per command), so they are not mechanically length-driven; TOR reflects DeepSeek inspecting before acting more, and cmd_error per command has no clear winner (its per-turn "DeepSeek first" was a batching artifact, and its top teacher depends on the judge).
+- Every student-likelihood proxy (GRAPE, LALP at all k, ASLEC, RSR, SCAS, GRACE) ranks Qwen3.5-Plus first for the Qwen3-8B student (same-family bias).
+- SCRF: at the per-command unit it no longer robustly recovers the published top teacher; as currently defined it carries little signal beyond command-count effects. Refinement should use the 11-category level.
+- **Not stable at n=200.** Under task-bootstrap resampling most proxies' own teacher ranking is not reproduced in 80% of resamples, i.e. a different sample of tasks would likely give a different ranking. Per-trajectory score variance within a teacher is as large as or larger than the variance between teacher means, so teacher identity is a coarse selection unit. This is why the benchmark is being extended to 500 and 1000 tasks.
+- **Judge agreement is high on failure detection but low on the fine taxonomy** (two judges, Qwen3-32B vs gpt-oss-120b, identical commands):
+
+  | judgment | n | agreement |
+  |---|---|---|
+  | is it a failure? | 12,244 commands | 98.5% |
+  | recovered? (K=3) | 838 failures | 85.9% |
+  | which of the 11 categories | 1,381 failures | 61.0% |
+  | which of the 91 subcategories | 1,381 failures | 51.6% |
+
+  so error/recovery signals are judge-robust, but the fine subcategory label is not, which is why SCRF is also reported at the 11-category level.
+
+## Layout
+
+Stage 1-2 (data):
+- `prepare_dataset.py`: builds the matched task list and pins the teacher trajectory files.
+- `generate_trajectories.py`: runs the student on the sampled tasks to produce its traces.
+
+Stage 3 (score each teacher trajectory):
+- `compute_proxies.py`: per (teacher, task) score for every proxy.
+- `judge.py`: the LLM judge used by cmd_error and SCRF.
+
+Stage 4 (rank and analyze):
+- `evaluate_ranking.py`: teacher rankings, bootstrap, sample-efficiency.
+
+Supporting scripts:
+- `plot_scrf_errors.py`: error-category distributions behind SCRF.
+- `scrf_distribution_rank.py`: SCRF-KL / overlap teacher ranking, derived (no rerun) from the per-task scrf components; separate from compute_proxies because it is a teacher-level score over pooled distributions, not a per-(teacher, task) score (like GRACE's teacher-level step).
+
+- `slurm/`: cluster launch scripts. `docs/`: specs and the results write-up.
+- `runs/`, `venv/`, `upstream/` (the cloned author repos) are under `$WS_ROOT/teacher_ranking_proxy/`.
+
+## To dos
+
+- Extend to 500 and 1000 tasks to see whether the proxy rankings become stable.
+- Build a pipeline that finds more ground-truth student/teacher rankings on agentic tasks, from open-source trajectories and tasks, so proxies can be validated on more than the one Terminal-Lego ranking. Started in `litmine/` (literature-mining pipeline; spec in `docs/PIPELINE.md`).
+- Look for ground-truth rankings that are FLOPs/token-budget controlled, i.e. teachers compared at equal SFT compute, so a teacher does not count as better only because its trajectories are longer (more training tokens). The length finding above makes this important.

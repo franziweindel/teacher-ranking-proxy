@@ -1,0 +1,360 @@
+{
+  "student": "Qwen/Qwen3-8B",
+  "n_trajectories": 8,
+  "rsr": {
+    "pass": true,
+    "samples": [
+      {
+        "official": {
+          "avg_rank": 2.412847579814624,
+          "avg_surprisal": 0.8373207370726627,
+          "n": 7768
+        },
+        "ours": {
+          "avg_rank": 2.412847579814624,
+          "avg_surprisal": 0.8373207432111431,
+          "n": 7768
+        }
+      },
+      {
+        "official": {
+          "avg_rank": 2.4467980295566503,
+          "avg_surprisal": 1.1414842163987935,
+          "n": 2030
+        },
+        "ours": {
+          "avg_rank": 2.4467980295566503,
+          "avg_surprisal": 1.1414842154592129,
+          "n": 2030
+        }
+      },
+      {
+        "official": {
+          "avg_rank": 1.501047632350887,
+          "avg_surprisal": 0.4022332761753603,
+          "n": 7159
+        },
+        "ours": {
+          "avg_rank": 1.501047632350887,
+          "avg_surprisal": 0.4022332753760802,
+          "n": 7159
+        }
+      },
+      {
+        "official": {
+          "avg_rank": 2.107095046854083,
+          "avg_surprisal": 1.0926907601924625,
+          "n": 747
+        },
+        "ours": {
+          "avg_rank": 2.107095046854083,
+          "avg_surprisal": 1.0926907831725665,
+          "n": 747
+        }
+      },
+      {
+        "official": {
+          "avg_rank": 1.532999807581297,
+          "avg_surprisal": 0.4124333581856542,
+          "n": 5197
+        },
+        "ours": {
+          "avg_rank": 1.532999807581297,
+          "avg_surprisal": 0.4124333636907974,
+          "n": 5197
+        }
+      },
+      {
+        "official": {
+          "avg_rank": 1.9686450167973124,
+          "avg_surprisal": 0.8503684335433088,
+          "n": 893
+        },
+        "ours": {
+          "avg_rank": 1.9686450167973124,
+          "avg_surprisal": 0.8503684506304187,
+          "n": 893
+        }
+      },
+      {
+        "official": {
+          "avg_rank": 1.6223175965665235,
+          "avg_surprisal": 0.7326898943201156,
+          "n": 233
+        },
+        "ours": {
+          "avg_rank": 1.6223175965665235,
+          "avg_surprisal": 0.732689861575933,
+          "n": 233
+        }
+      },
+      {
+        "official": {
+          "avg_rank": 1.5844155844155845,
+          "avg_surprisal": 0.9230402413900797,
+          "n": 77
+        },
+        "ours": {
+          "avg_rank": 1.5844155844155845,
+          "avg_surprisal": 0.9230402413900797,
+          "n": 77
+        }
+      }
+    ]
+  },
+  "aslec": {
+    "pass": true,
+    "skip1": {
+      "drop_official": [
+        -0.7920533009842708,
+        -1.0621804941133344,
+        -0.34852380310069514,
+        -0.9772325741774103,
+        -0.3598560174193412,
+        -0.7557343178607541,
+        -0.7358481144349213,
+        -0.9351854681833883
+      ],
+      "drop_ours": [
+        -0.7920533009842708,
+        -1.0621804941133344,
+        -0.34852380310069514,
+        -0.9772325741774103,
+        -0.3598560174193412,
+        -0.7557343178607541,
+        -0.7358481144349213,
+        -0.9351854681833883
+      ],
+      "casl_official": [
+        -0.8361262662712063,
+        -1.1391987702280877,
+        -0.40084461733230026,
+        -1.0891417720123566,
+        -0.4110305505616032,
+        -0.8473996746015748,
+        -0.729845387889957,
+        -0.9144325767713737
+      ],
+      "casl_ours": [
+        -0.8361262662712063,
+        -1.1391987702280877,
+        -0.4008446173323002,
+        -1.0891417720123564,
+        -0.41103055056160315,
+        -0.8473996746015746,
+        -0.7298453878899569,
+        -0.9144325767713734
+      ],
+      "coef_official": [
+        1.0592981289381895,
+        0.0035763796108668595,
+        -0.6627872897510162,
+        0.05912881879118326
+      ],
+      "coef_ours": [
+        1.0592981289381886,
+        0.003576379610866889,
+        -0.6627872897510448,
+        0.059128818791182695
+      ],
+      "pass": true
+    },
+    "skip2": {
+      "drop_official": [
+        -0.7919678599932546,
+        -1.0592961880721876,
+        -0.34726315829963744,
+        -0.9642540855691896,
+        -0.35820545904309053,
+        -0.7440370471899018,
+        -0.6870855273889863,
+        -0.7743212489945183
+      ],
+      "drop_ours": [
+        -0.7919678599932546,
+        -1.0592961880721876,
+        -0.34726315829963744,
+        -0.9642540855691896,
+        -0.35820545904309053,
+        -0.7440370471899018,
+        -0.6870855273889863,
+        -0.7743212489945183
+      ],
+      "casl_official": [
+        -0.8140972889127901,
+        -1.097050716996517,
+        -0.3752343321587659,
+        -1.0236909798455265,
+        -0.3851594153280626,
+        -0.7926496838416397,
+        -0.677386437515899,
+        -0.7556931555096139
+      ],
+      "casl_ours": [
+        -0.8140972889127901,
+        -1.0970507169965171,
+        -0.37523433215876584,
+        -1.0236909798455265,
+        -0.3851594153280626,
+        -0.7926496838416397,
+        -0.677386437515899,
+        -0.7556931555096138
+      ],
+      "coef_official": [
+        1.028738347167454,
+        0.0073293518579565856,
+        -6.442861363453259,
+        0.07967576784822994
+      ],
+      "coef_ours": [
+        1.0287383471674767,
+        0.007329351857957866,
+        -6.4428613634532645,
+        0.07967576784826212
+      ],
+      "pass": true
+    }
+  },
+  "scas": {
+    "pass": false,
+    "max_rel_diff_scas_score": 0.10382174128847177,
+    "samples": [
+      {
+        "official": {
+          "scas_score": 1.2117896617801307,
+          "answer_answer_similarity": 0.818243682384491,
+          "answer_question_similarity": 0.7987911105155945,
+          "answer_mean_nll": 1.2734375,
+          "question_mean_nll": 1.078125
+        },
+        "ours": {
+          "scas_score": 1.123468253244937,
+          "answer_answer_similarity": 0.8202872276306152,
+          "answer_question_similarity": 0.7997385263442993,
+          "answer_mean_nll": 1.2109375,
+          "question_mean_nll": 1.078125
+        },
+        "n_answer_ours": 270
+      },
+      {
+        "official": {
+          "scas_score": 1.572852179660913,
+          "answer_answer_similarity": 0.8295830488204956,
+          "answer_question_similarity": 0.8017439246177673,
+          "answer_mean_nll": 1.2265625,
+          "question_mean_nll": 1.9296875
+        },
+        "ours": {
+          "scas_score": 1.4961116684571607,
+          "answer_answer_similarity": 0.8318309783935547,
+          "answer_question_similarity": 0.8026599287986755,
+          "answer_mean_nll": 1.1796875,
+          "question_mean_nll": 1.9375
+        },
+        "n_answer_ours": 241
+      },
+      {
+        "official": {
+          "scas_score": 0.04868620249909128,
+          "answer_answer_similarity": 0.8114853501319885,
+          "answer_question_similarity": 0.7782750725746155,
+          "answer_mean_nll": 0.10595703125,
+          "question_mean_nll": 1.0703125
+        },
+        "ours": {
+          "scas_score": 0.04363151617891248,
+          "answer_answer_similarity": 0.8118402361869812,
+          "answer_question_similarity": 0.7783757448196411,
+          "answer_mean_nll": 0.09521484375,
+          "question_mean_nll": 1.078125
+        },
+        "n_answer_ours": 1515
+      },
+      {
+        "official": {
+          "scas_score": 0.5854767865912436,
+          "answer_answer_similarity": 0.817836582660675,
+          "answer_question_similarity": 0.784116804599762,
+          "answer_mean_nll": 0.5859375,
+          "question_mean_nll": 1.9375
+        },
+        "ours": {
+          "scas_score": 0.549391983775422,
+          "answer_answer_similarity": 0.8193177580833435,
+          "answer_question_similarity": 0.7846764922142029,
+          "answer_mean_nll": 0.5546875,
+          "question_mean_nll": 1.9453125
+        },
+        "n_answer_ours": 326
+      },
+      {
+        "official": {
+          "scas_score": 0.1468025093167853,
+          "answer_answer_similarity": 0.8044230341911316,
+          "answer_question_similarity": 0.7806416153907776,
+          "answer_mean_nll": 0.27734375,
+          "question_mean_nll": 1.0703125
+        },
+        "ours": {
+          "scas_score": 0.1340578927200795,
+          "answer_answer_similarity": 0.8050965666770935,
+          "answer_question_similarity": 0.7809033393859863,
+          "answer_mean_nll": 0.255859375,
+          "question_mean_nll": 1.078125
+        },
+        "n_answer_ours": 781
+      },
+      {
+        "official": {
+          "scas_score": 0.6792008474003524,
+          "answer_answer_similarity": 0.8236796855926514,
+          "answer_question_similarity": 0.7893706560134888,
+          "answer_mean_nll": 0.65625,
+          "question_mean_nll": 1.9375
+        },
+        "ours": {
+          "scas_score": 0.6462414216484831,
+          "answer_answer_similarity": 0.8248817920684814,
+          "answer_question_similarity": 0.7897726893424988,
+          "answer_mean_nll": 0.62890625,
+          "question_mean_nll": 1.9453125
+        },
+        "n_answer_ours": 413
+      },
+      {
+        "official": {
+          "scas_score": 0.11224414745800004,
+          "answer_answer_similarity": 0.8073696494102478,
+          "answer_question_similarity": 0.778167188167572,
+          "answer_mean_nll": 0.220703125,
+          "question_mean_nll": 1.078125
+        },
+        "ours": {
+          "scas_score": 0.10588678373352423,
+          "answer_answer_similarity": 0.8076874017715454,
+          "answer_question_similarity": 0.7782496213912964,
+          "answer_mean_nll": 0.2099609375,
+          "question_mean_nll": 1.078125
+        },
+        "n_answer_ours": 1639
+      },
+      {
+        "official": {
+          "scas_score": 0.7417812745025003,
+          "answer_answer_similarity": 0.808505654335022,
+          "answer_question_similarity": 0.7759862542152405,
+          "answer_mean_nll": 0.71484375,
+          "question_mean_nll": 1.9296875
+        },
+        "ours": {
+          "scas_score": 0.7086288213031366,
+          "answer_answer_similarity": 0.8100070357322693,
+          "answer_question_similarity": 0.7765604257583618,
+          "answer_mean_nll": 0.6875,
+          "question_mean_nll": 1.9375
+        },
+        "n_answer_ours": 318
+      }
+    ]
+  }
+}

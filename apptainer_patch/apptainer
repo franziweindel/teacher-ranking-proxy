@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+# Compatibility patch between Harbor's ApptainerEnvironment and Apptainer 1.5.x.
+# Sits in front of the real binary in PATH. What it does and why:
+#   * `instance start` in Apptainer 1.5 has no --pwd flag, but Harbor passes
+#     one. It is dropped here and the intended working directory is injected
+#     on `exec` instead.
+#   * Instances are forced onto the user-namespace flow (--userns): mixing the
+#     setuid instance flow with user-namespace execs breaks image-file
+#     ownership (writes into image dirs fail with EPERM).
+#   * SIF images are read-only while Harbor copies /solution and /tests into
+#     the container root, so each instance gets a disk-backed --overlay (the
+#     equivalent of Docker's writable container layer). A tmpfs layer would be
+#     RAM-backed — size-capped and charged against the task's memory limit,
+#     which broke verifiers that install packages. Overlay dirs live under
+#     TRP_OVERLAY_ROOT (default: big disk) and are removed on `instance stop`.
+#   * Apptainer cannot apply cgroup limits itself on this path (no rootless
+#     cgroups in fakeroot mode), so Harbor's --memory/--cpus flags are
+#     translated into a systemd-run --user scope wrapping the instance
+#     (requires the host's user-session cgroup delegation; falls back to
+#     running without limits if systemd-run is unavailable).
+#   * exec targets the instance with --userns to join its namespace.
+set -euo pipefail
+
+if [ -n "${APPTAINER_REAL_BIN:-}" ]; then
+    REAL="$APPTAINER_REAL_BIN"
+else
+    patch_self="$(readlink -f "${BASH_SOURCE[0]}")"
+    REAL=""
+    for cand in $(type -ap apptainer); do
+        [ "$(readlink -f "$cand")" = "$patch_self" ] && continue
+        REAL="$cand"
+        break
+    done
+    if [ -z "$REAL" ]; then
+        echo "apptainer_patch: no real apptainer binary found in PATH" >&2
+        exit 127
+    fi
+fi
+
+# Overlays are transient per-instance write layers -> node-local disk, NOT NFS:
+# on NFS apptainer falls back to fuse-overlayfs, whose access checks break
+# multi-uid fakeroot (apt/_apt, dpkg). Kernel overlayfs needs a local upper dir.
+OVERLAY_ROOT="${TRP_OVERLAY_ROOT:-${TMPDIR:-/tmp}/harbor_overlays_$(id -un)}"
+
+if [ "${1:-}" = "instance" ] && [ "${2:-}" = "start" ]; then
+    instance_name="${@: -1}"
+    overlay_dir="$OVERLAY_ROOT/$instance_name"
+    mkdir -p "$overlay_dir"
+    out=(instance start --userns)
+    mem="" cpus=""
+    shift 2
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --pwd)
+                shift 2 ;;
+            --memory)
+                mem="$2"; shift 2 ;;
+            --cpus)
+                cpus="$2"; shift 2 ;;
+            --memory-swap|--memory-reservation|--cpuset-cpus|--cpuset-mems)
+                shift 2 ;;   # not supported via the scope wrapper
+            *)
+                out+=("$1")
+                shift ;;
+        esac
+    done
+    # The per-instance writable overlay must be the LAST overlay on the command
+    # line so it is the UPPER layer: a caller may add read-only overlays of its
+    # own (harbor does for registry-imported images), and anything they provide
+    # would otherwise be unwritable. The last two elements are the image and the
+    # instance name, so splice it in just before them.
+    n=${#out[@]}
+    out=("${out[@]:0:n-2}" --overlay "$overlay_dir" "${out[@]:n-2}")
+
+    # Per-task resource limits, in order of preference:
+    #   1. Inside a Slurm job: run the instance in its OWN job step
+    #      (srun --overlap --mem/--cpus-per-task) — Slurm gives the step a
+    #      real kernel cgroup (verified on Capella: memory.max = request;
+    #      CPUs constrained by core pinning). A task exceeding its budget is
+    #      OOM-killed inside its step -> that trial fails (reward 0), the
+    #      job and the other tasks are untouched. Steps must request
+    #      --gres=gpu:1 (Capella cli_filter rejects gpu:0 / no gres);
+    #      --overlap shares the job's GPU without holding it.
+    #   2. systemd-run --user scope (lab hosts with user session, e.g. sequoia).
+    #   3. Neither available -> start unlimited and warn loudly.
+    if { [ -n "$mem" ] || [ -n "$cpus" ]; } && [ -n "${SLURM_JOB_ID:-}" ] \
+            && command -v srun >/dev/null; then
+        stepargs=(--jobid="$SLURM_JOB_ID" -N1 -n1 --overlap
+                  ${TRP_STEP_GRES:---gres=gpu:1} --job-name="hb-$instance_name")
+        [ -n "$cpus" ] && stepargs+=(--cpus-per-task="${cpus%%.*}")
+        [ -n "$mem" ] && stepargs+=(--mem="$mem")
+        helper=$(mktemp "${TMPDIR:-/tmp}/harbor_inst_XXXXXX.sh")
+        # After starting the instance, the step holds a PERSISTENT exec that
+        # anchors a per-instance tmux server on a deterministic socket.
+        # Rationale: on this Apptainer/Slurm combination, processes spawned by
+        # a short-lived `apptainer exec` die when that exec exits, so harbor's
+        # tmux server (created and used across many separate execs) never
+        # survives — the agent types into a dead terminal. The anchor exec
+        # lives as long as the instance (container teardown ends it, which
+        # also ends the step), polls until tmux is installed (harbor apt-
+        # installs it during agent setup; user-space fallback checked too)
+        # and (re)starts the server whenever the socket is absent.
+        anchor_sock="/tmp/harbor_tmux_${instance_name}.sock"
+        {
+            printf '%q ' "$REAL" "${out[@]}"; printf '|| exit 1\n'
+            printf 'exec %q exec --userns --pwd /tmp %q bash -c %q\n' \
+                "$REAL" "instance://$instance_name" \
+"for _i in \$(seq 1 43200); do if [ ! -S $anchor_sock ]; then T=''; command -v tmux >/dev/null 2>&1 && T=tmux; [ -z \"\$T\" ] && [ -x /logs/agent/.tools/tmux ] && T=/logs/agent/.tools/tmux; if [ -n \"\$T\" ]; then \"\$T\" -S $anchor_sock new-session -d -s _keep 2>/dev/null; fi; fi; sleep 2; done"
+        } > "$helper"
+        steplog="${TMPDIR:-/tmp}/harbor_step_${instance_name}.log"
+        # The shim usually runs INSIDE another job step (the harbor driver).
+        # A nested srun inherits that step's SLURM_* launch env (CPU binding,
+        # cpus/mem, task layout) and then fails with "CPU binding outside of
+        # job step allocation" or silently reuses the parent geometry. Strip
+        # those variables so the new step gets its own clean 1-task
+        # allocation with the requested --mem/--cpus cgroup (verified:
+        # memory.max = request, cpuset = 1 core).
+        envclean=$(env | grep -oE '^SLURM_(CPU_BIND|CPUS_|MEM_|NTASKS|NPROCS|DISTRIBUTION|STEP|PROCID|LOCALID|TASKS|TRES_)[A-Z_]*' | sed 's/^/-u /' | tr '\n' ' ')
+        # shellcheck disable=SC2086
+        setsid env $envclean srun "${stepargs[@]}" bash "$helper" >"$steplog" 2>&1 < /dev/null &
+        rc=1
+        for _i in $(seq 1 60); do
+            if "$REAL" instance list 2>/dev/null | awk 'NR>1{print $1}' \
+                    | grep -qx "$instance_name"; then
+                rc=0; break
+            fi
+            sleep 3
+        done
+        [ $rc -ne 0 ] && echo "[apptainer-shim] instance $instance_name failed to appear in its Slurm step (180s)" >&2
+        step_anchored=1
+    elif { [ -n "$mem" ] || [ -n "$cpus" ]; } && command -v systemd-run >/dev/null \
+            && systemd-run --user --scope --quiet true >/dev/null 2>&1; then
+        props=()
+        [ -n "$mem" ] && props+=(-p "MemoryMax=$mem")
+        if [ -n "$cpus" ]; then
+            quota=$(awk -v c="$cpus" 'BEGIN{printf "%d", c*100}')
+            props+=(-p "CPUQuota=${quota}%")
+        fi
+        systemd-run --user --scope --quiet \
+            --unit="harbor-apptainer-$instance_name" "${props[@]}" \
+            "$REAL" "${out[@]}"
+        rc=$?
+    else
+        if [ -n "$mem" ] || [ -n "$cpus" ]; then
+            echo "[apptainer-shim] WARNING: no limit mechanism (no Slurm, no user systemd) - instance $instance_name runs UNLIMITED" >&2
+        fi
+        "$REAL" "${out[@]}"
+        rc=$?
+    fi
+    if [ $rc -eq 0 ] && [ "${step_anchored:-0}" != 1 ]; then
+        # Non-Slurm hosts: anchor the per-instance tmux server from a
+        # detached persistent exec (same rationale as the Slurm-step anchor;
+        # the exec dies with the instance at teardown).
+        anchor_sock="/tmp/harbor_tmux_${instance_name}.sock"
+        setsid "$REAL" exec --userns --pwd /tmp "instance://$instance_name" bash -c \
+"for _i in \$(seq 1 43200); do if [ ! -S $anchor_sock ]; then T=''; command -v tmux >/dev/null 2>&1 && T=tmux; [ -z \"\$T\" ] && [ -x /logs/agent/.tools/tmux ] && T=/logs/agent/.tools/tmux; if [ -n \"\$T\" ]; then \"\$T\" -S $anchor_sock new-session -d -s _keep 2>/dev/null; fi; fi; sleep 2; done" \
+            >/dev/null 2>&1 < /dev/null &
+    fi
+    if [ $rc -eq 0 ]; then
+        # fuse-overlayfs enforces its own permission checks, so apt's
+        # _apt-owned mode-700 partial/ dirs are unwritable even for ns-root
+        # and apt's privilege drop fails too. Run apt as root and point its
+        # download dirs at fresh root-owned ones on the overlay.
+        "$REAL" exec --userns --pwd / "instance://$instance_name" sh -c '
+            command -v apt-get >/dev/null || exit 0
+            mkdir -p /apt-rootless/archives/partial /apt-rootless/lists/partial
+            printf "APT::Sandbox::User \"root\";\nDir::Cache::Archives \"/apt-rootless/archives/\";\nDir::State::Lists \"/apt-rootless/lists/\";\n" \
+                > /etc/apt/apt.conf.d/90fuse-overlay' \
+            >/dev/null 2>&1 || true
+    fi
+    exit $rc
+fi
+
+if [ "${1:-}" = "instance" ] && [ "${2:-}" = "stop" ]; then
+    instance_name="${@: -1}"
+    "$REAL" "$@"
+    rc=$?
+    rm -rf "$OVERLAY_ROOT/$instance_name" 2>/dev/null || true
+    exit $rc
+fi
+
+if [ "${1:-}" = "exec" ]; then
+    has_pwd=0
+    for a in "$@"; do
+        [ "$a" = "--pwd" ] && has_pwd=1
+    done
+    shift
+    if [ "$has_pwd" = 0 ]; then
+        exec "$REAL" exec --userns --pwd /workspace "$@"
+    fi
+    exec "$REAL" exec --userns "$@"
+fi
+
+exec "$REAL" "$@"

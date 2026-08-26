@@ -1,0 +1,11 @@
+{
+  "benchmark": "Terminal-Bench 2.0 (Terminus-2 scaffold), standalone teacher performance",
+  "source": "Terminal-Lego paper (arXiv:2606.03461), Table 1, Section 4.1 'A Pedagogical Paradox in Matched-Task Distillation'",
+  "retrieved": "2026-08-18",
+  "scores": {
+    "Claude Opus 4.6": 69.4,
+    "GLM-5": 56.2,
+    "Qwen3.5-Plus": 52.5,
+    "DeepSeek-V3.2": 39.3
+  }
+}
