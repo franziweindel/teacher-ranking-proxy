@@ -4,6 +4,16 @@
 literature that aim to predict which teacher produces the best SFT data for a
 given student, from trajectories only, without running SFT.
 
+**Relation to OpenThoughts-Agent.** This lives as `data/teacher_ranking_proxy/`
+inside the `OpenThoughts-Agent` repo. Trajectory generation (Stage 2,
+`generate_trajectories.py`, the `apptainer_patch/` shim, `bridge_deploy/`,
+`harbor_patches.py`) imports Harbor and the repo's HPC stack, so it only runs
+embedded there. The scoring and evaluation (Stages 3-4:
+`compute_proxies.py`, `evaluate_ranking.py`, `judge.py`) are self-contained
+(transformers/vLLM plus the pinned author repos under `upstream/`) and run on
+existing trajectory files without the parent repo. The public standalone repo
+is a snapshot/mirror of this folder.
+
 ## Implemented proxies
 
 - TOR / EGS: https://arxiv.org/pdf/2606.03461
