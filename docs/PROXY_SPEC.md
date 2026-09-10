@@ -676,22 +676,22 @@ github.com/wangbing1416/ASLEC
 
 Implementation (`compute_aslec`; the official `output_drop_score` /
 `output_causal_score` reimplemented and verified identical on real
-trajectories). A step is one assistant turn, starting at the first token of
-its analysis text, after the `{ "analysis": "` template of the Terminus-2
-JSON turn, so that the skipped "first token" is the first token the teacher
-chose and not the near-certain brace; the template tokens are excluded from
-every statistic. One token is skipped per step (`skip_tokens=1`, the paper's
-definition; the authors' run script defaults to 2).
+trajectories). The paper's reasoning step is an assistant turn here, taken
+from the first token of its analysis text, after the `{ "analysis": "`
+template of the Terminus-2 JSON turn, so that the skipped "first token" is
+the first token the teacher chose and not the near-certain brace; the
+template tokens are excluded from every statistic. One token is skipped per
+turn (`skip_tokens=1`, the paper's definition; the authors' run script
+defaults to 2).
 
-The CASL regression: one observation per trajectory over all
-teachers; per trajectory M = mean log-probability over all step tokens,
-M_first = mean over the first token of each step (assistant turn), M_non =
-mean over the others, F = number of first tokens / number of tokens, the
-share of first tokens (high F = short turns). Least squares
-M ~ beta1 M_non + beta2 M_first + gamma F + intercept, then score = M -
-gamma F. The first tokens stay in the score; only the part of the mean that
-follows from their share, i.e. from step length, is removed (DROP instead
-discards them).
+The CASL regression: one observation per trajectory over all teachers; per
+trajectory M = mean log-probability over all assistant tokens, M_first =
+mean over the first token of each assistant turn, M_non = mean over the
+others, F = number of first tokens / number of tokens, the share of first
+tokens (high F = short turns). Least squares M ~ beta1 M_non + beta2 M_first
++ gamma F + intercept, then score = M - gamma F. The first tokens stay in
+the score; only the part of the mean that follows from their share, i.e.
+from turn length, is removed (DROP instead discards them).
 
 ---
 
