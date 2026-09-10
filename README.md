@@ -205,29 +205,28 @@ per-view numbers and what was tried: PROXY_SPEC 6.5.
 
 ## Additional findings
 
-- traj_length reproduces the 8B ranking (tau-b +0.91) but that is pure length: DeepSeek writes the longest trajectories. Its GLM/Q35 order differs from SCRF's; for the 8B student that pair is a ground-truth tie, so no verdict, but for the 32B student the pair is ordered (GLM > Q35) and traj_length gets it wrong (+0.67) while SCRF and cmd_error get it right (+1.00). TOR (+0.91) and cmd_error are rates (per action, per command), so they are not mechanically length-driven; TOR reflects DeepSeek inspecting before acting more. cmd_error per command was ambiguous at n=200 (gpt-oss judge said GLM, qwen said DS) but resolves to a clean DS > GLM > Q35 > CL at n=1000 (tau-b +0.91, P=1.00) with the gpt-oss judge; the per-turn "DeepSeek first" seen earlier was a batching artifact.
-- Every student-likelihood proxy except RSR (GRAPE, LALP at all k, ASLEC, SCAS, GRACE) ranks Qwen3.5-Plus first for the Qwen3-8B student (same-family bias); the ones rerun under the Qwen3-32B student (GRAPE, LALP, ASLEC at n=200) do the same. RSR, which the paper reads as lower = better, is the mirror image: Claude first, Qwen3.5-Plus last, for both students. (Until 2026-09-10 RSR was reported with the sign reversed, i.e. as Q35 > GLM > DS > CL.)
-- **SCRF works and stabilizes with n.** With the corrected per-command segmentation and the gpt-oss-120b judge, all SCRF variations reproduce the published ranking (tau-b +0.91, DeepSeek top-1) at both taxonomy granularities. At n=200 it is right but not yet bootstrap-stable (P(top-1) ~0.68 at 11-cat, ~0.50 at 91-subcat); at n=1000 every SCRF view is highly stable (P(top-1) 0.90-1.00, 11-cat > 91-subcat). For the 8B student it ties cmd_error and traj_length at the tau-b ceiling (+0.91): the GLM/Q35 ground-truth tie caps tau-b, so no proxy can be shown to separate there. The 32B ground truth has no tie and does separate them: SCRF +1.00 (all views), traj_length +0.67 (section above). q_S sensitivity to the number of student traces is still open: the 8B run with q_S from 1000 instead of 200 student traces hit the score cache and was not actually recomputed (job 4140407; the file is byte-identical to the 200-trace one), so it has to be rerun with the cache cleared.
-- **But it is judge-dependent.** With the Qwen3-32B judge the same proxy is weak at n=200 (tau-b -0.18..+0.55, GLM first). So the signal is real but hinges on judge quality at the error-labelling step. (An earlier version, before the segmentation fix, made SCRF look signal-less; that was a parsing artifact.)
-
-  | SCRF-unrecovered | judge | segmentation | tau-b | top-1 | P(top-1) |
-  |---|---|---|---|---|---|
-  | 11-category | gpt-oss-120b | JSON-anchored (current) | +0.91 | DS ✓ | 0.68 |
-  | 91-subcategory | gpt-oss-120b | JSON-anchored (current) | +0.91 | DS ✓ | 0.50 |
-  | 11-category | Qwen3-32B | JSON-anchored (current) | +0.18 | GLM ✗ | 0.33 |
-  | (any) | gpt-oss-120b | per-turn (old, batching artifact) | +0.55 | DS | 0.24 |
-  | (any) | Qwen3-32B | per-turn (old) | +0.18 | Q35 ✗ | 0.07 |
-- **n matters: unstable at 200, stable at 1000.** At n=200, under task-bootstrap resampling most proxies' own teacher ranking is not reproduced in 80% of resamples, i.e. a different sample of tasks would likely give a different ranking (per-trajectory score variance within a teacher is as large as or larger than the variance between teacher means, so teacher identity is a coarse selection unit). Extending to n=1000 resolves this for the proxies that carry signal: SCRF (all views) and cmd_error reach P(top-1) 0.90-1.00, and cmd_error with the gpt-oss judge jumps from tau-b +0.55 (n=200) to +0.91, P=1.00 (n=1000). The proxies that were wrong at n=200 (the student-likelihood family) stay wrong at n=1000, so more tasks sharpen the verdict rather than rescuing weak proxies.
-- **Judge agreement is high on failure detection, lower on the taxonomy** (three judges, gpt-oss-120b, Qwen3-32B and GLM-4.6-FP8, identical commands; n = commands that all three judged for that question; pairwise = mean over the three judge pairs):
-
-  | judgment | n | all three agree | pairwise |
-  |---|---|---|---|
-  | is it a failure? | 9,308 | 98.5% | 99.0-99.1% |
-  | recovered? (K=3) | 798 | 84.8% | 88.1-91.0% |
-  | which of the 11 categories | 697 | 63.7% | 70.9-76.9% |
-  | which of the 91 subcategories | 697 | 59.3% | 67.6-72.5% |
-
-  so error/recovery signals are judge-robust, but the category label is not, which is why SCRF is also reported at the 11-category level. Yet the ranking depends on the judge more than these numbers suggest (judge ablation above): with gpt-oss-120b SCRF recovers the ranking, with the other two it does not, so the disagreements are not random but shift the per-teacher error profiles.
+- **Length is a confound.** traj_length reaches the 8B ceiling (+0.91)
+  simply because DeepSeek writes the longest trajectories; on the tie-free
+  32B ranking it swaps GLM-5 and Qwen3.5-Plus (+0.67) while SCRF and
+  cmd_error, which are rates, get them right (+1.00).
+- **Same-family bias.** Every student-likelihood proxy except RSR (GRAPE,
+  LALP, ASLEC, SCAS, GRACE) puts Qwen3.5-Plus first for both Qwen students.
+  RSR (lower = better) is the mirror image: Claude first, Qwen3.5-Plus last.
+- **SCRF works, stabilizes with n, and is judge-dependent.** All six views
+  reproduce the 8B ranking and recover the full 32B ranking, matching but not
+  beating cmd_error. At n=200 it is right but not bootstrap-stable (P 0.5-0.7),
+  at n=1000 it is (P 0.90-1.00). Only with the gpt-oss-120b judge: Qwen3-32B
+  and GLM-4.6 degrade it to GLM-5 first, although the three judges agree
+  98.5 % on whether a command failed, 85 % on recovery, 64 % on the 11
+  categories and 59 % on the 91 subcategories (n=200; pairwise 99 / 88-91 /
+  71-77 / 68-73 %). Failure and recovery labels are judge-robust, the
+  category labels are not, and the disagreements shift the per-teacher error
+  profiles rather than cancelling out.
+- **n matters.** At n=200 most proxies' own teacher ranking is not reproduced
+  in 80 % of task-bootstrap resamples (within-teacher score variance is as
+  large as between-teacher variance). n=1000 fixes this for the proxies with
+  signal (SCRF, cmd_error: P 0.90-1.00; cmd_error goes from +0.55 to +0.91)
+  and leaves the wrong ones wrong.
 
 ## Layout
 
@@ -251,9 +250,21 @@ Supporting scripts:
 
 ## To dos
 
-- TOR still 2-3x the paper's Table 3 values and GLM/Qwen3.5-Plus swapped in every one of the 24 views (see the 32B section). Remaining candidates: per-turn instead of per-command counting, a narrower "state-changing" action definition (file edits only), or stricter path parsing (only explicit file operands). Ask the authors for the TOR script; teacher-only, seconds to rerun. The old single-score file is kept as `proxy_scores/*/tor__v1_listloose.jsonl`.
-- Rerun 8B SCRF with q_S built from the 1000-trace student run (clear `proxy_scores/Qwen__Qwen3-8B/scrf@gpt-oss-120b.jsonl` first; the 200-trace result is kept as `scrf@gpt-oss-120b__qS200.jsonl`) to check how many student traces q_S needs.
-- Finish the 32B likelihood family: fix the device mismatch in `_trajectory_scas_components` (index tensor must live on the model's device when the 32B student is sharded over 2 GPUs) and rerun SCAS and GRACE; the n=1000 run of local_nll_k8, aslec, rsr, scas for 32B was in flight when the Capella storage outage of 2026-09-09 hit.
-- Third judge (GLM-4.6-FP8) for 3-way agreement on cmd_error/SCRF labels: needs two nodes (337 GB weights); the alpha 8x40 GB attempt OOMs and the Capella 2-node Ray/vLLM bringup did not become healthy within 40 min.
-- Build a pipeline that finds more ground-truth student/teacher rankings on agentic tasks, from open-source trajectories and tasks, so proxies can be validated on more than the one Terminal-Lego ranking. Started in `litmine/` (literature-mining pipeline; spec in `docs/PIPELINE.md`).
-- Look for ground-truth rankings that are FLOPs/token-budget controlled, i.e. teachers compared at equal SFT compute, so a teacher does not count as better only because its trajectories are longer (more training tokens). The length finding above makes this important.
+In flight (2026-09-10):
+- 8B SCRF with q_S from the 1000-trace student run (job 4152502); the
+  earlier attempt hit the score cache. Then the q_S sample-size comparison
+  against `scrf@gpt-oss-120b__qS200.jsonl`.
+- 32B n=1000: local_nll_k8, ASLEC, RSR, SCAS (job 4151812, third attempt
+  after two node failures). Its RSR file needs the sign flip applied by hand
+  (job started before the fix).
+- Evaluate egs_post / egs_loop against the 32B ground truth.
+
+Open:
+- TOR: no operationalization reproduces the paper's Table 3 (PROXY_SPEC 6.5);
+  ask the authors for their script, then rerun (teacher-only, seconds).
+- GRACE for the 32B student (fp32 TRAK gradients need more than one GPU).
+- More ground-truth student/teacher rankings on agentic tasks, so proxies
+  are validated on more than Terminal-Lego: `litmine/` (spec in
+  `docs/PIPELINE.md`).
+- Ground truths that are FLOPs/token-budget controlled, so a teacher does
+  not count as better only because its trajectories are longer.
