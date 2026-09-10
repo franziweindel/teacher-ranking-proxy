@@ -735,11 +735,22 @@ Principled Teacher Selection for Knowledge Distillation
 arXiv:2511.02833
 ```
 
-One gradient vector per trajectory: the student's NLL over the trajectory's
-assistant tokens, one backward pass, the gradient w.r.t. the student's
-LoRA-B weights, randomly projected to 512 numbers. A teacher with n tasks
-is therefore an n x 512 matrix, one row per task (one trajectory per task,
-so the paper's grouping by prompt is trivial).
+One gradient vector per trajectory. The student is wrapped with LoRA as in
+the paper's `--use-lora` option: six weight matrices in every layer (the
+query, key and value projections of attention and the up, gate and down
+projections of the MLP) get a small correction B x A, with A and B thin
+matrices of rank 16 and B initialised to zero, so the model is unchanged
+until fine-tuned. For one trajectory, compute the student's NLL over its
+assistant tokens, one backward pass, and take the gradient with respect to
+the entries of all the B matrices only (a few million numbers, strung out
+as one long vector). That vector is then shrunk to 512 numbers with a fixed
+random table of +1/-1 signs (512 rows, one column per gradient entry, drawn
+once and reused): output i is the sum of all gradient entries, each
+multiplied by the sign in row i. Random signs keep lengths and angles
+between gradient vectors nearly unchanged, so the 512 numbers stand in for
+the full gradient. A teacher with n tasks is therefore an n x 512 matrix,
+one row per task (one trajectory per task, so the paper's grouping by
+prompt is trivial).
 
 The score, computed ten times with seeds 0-9 and averaged: shuffle the
 tasks, hold out 10 % as the test set and keep the rest as the reference
