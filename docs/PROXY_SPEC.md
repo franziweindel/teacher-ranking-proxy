@@ -511,10 +511,7 @@ reported separately, never combined into a weighted score:
   the TOR condition and the egs_post condition of the same view. Same
   aggregation.
 
-Both write the same 24 `score_views` as tor. Earlier drafts had two more
-components: a pre-action rate, which is TOR under another name, and an
-adaptation rate (does the command after a failed one differ from it), which
-separated no teachers; both were removed 2026-08-26.
+Both write the same 24 `score_views` as tor.
 
 n=1000, per-teacher mean (%), `list` actions:
 
@@ -534,10 +531,13 @@ n=1000, per-teacher mean (%), `list` actions:
 | egs_loop exact_turn3 | 9.9 | 4.4 | 5.8 | 1.2 | DS > Q35 > GLM > CL |
 
 Verification frequency alone (egs_post) does not follow the ground truth:
-with strict alignment GLM-5 or Qwen3.5-Plus lead. With exact alignment and a
-bounded window, egs_post and egs_loop turn1 give the full paper order
-DS > GLM > Q35 > CL, but the GLM-5 / Qwen3.5-Plus gap is under one point, so
-this is not evidence of separation (bootstrap in `ranking_report`).
+with strict alignment GLM-5 or Qwen3.5-Plus lead, whatever the window. With
+exact alignment, egs_post gives the full paper order DS > GLM > Q35 > CL
+when the verification must come within the next 1, 2 or 3 responses
+(`turn1`-`turn3`) but not when any later response counts (`prevturn`);
+egs_loop gives it only for `turn1`. In those views the GLM-5 / Qwen3.5-Plus
+gap is under one point, so this is not evidence of separation (bootstrap in
+`ranking_report`).
 
 ---
 
@@ -564,14 +564,7 @@ Here:
 
 Score each existing teacher trajectory using the likelihood of the teacher-generated assistant tokens under the target student.
 
-Loss applies only to teacher-generated assistant tokens, not:
-
-```text
-task instruction
-system text
-terminal observations
-environment outputs
-```
+Loss applies only to teacher-generated assistant tokens, not task instruction, system text, terminal observations, environment outputs. 
 
 Normalize as prescribed by the published method.
 
@@ -607,7 +600,7 @@ L(D_T, θ_S) = student NLL on the teacher responses
 Only included here for completness. DO NOT IMPLEMENT, as currently we onyl sample 1 trajectory per teacher and task so we do not have a metric for average response-quality / reward score (woul donyl be 0/1 reward of that one trajectory and many trajetcory datasets filtered to only include sucessfull trajetcories)
 ---
 
-## 7.3 Local Naturalness / local-turn likelihood
+## 7.3 Local Naturalness / local-turn likelihood (LALP) 
 
 Reference:
 
