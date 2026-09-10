@@ -710,6 +710,30 @@ Propose RSR  defined as the ratio of a trajectory’s average tokenwise rank to 
 Reuse implementation in their git repo: https://github.com/UmeanNever/RankSurprisalRatio.
 Also I believe their current repo has actually been extended to multi-round chat / agent data. The implementation scans the complete chat-formatted sequence and identifies assistant spans only as the tokens to score. So use their exact implementation. 
 
+Implementation (`compute_rsr`; `rsr_cal.py` @59a7c4c reimplemented and
+verified exact on real trajectories, see `upstream_equivalence.py`). Per
+assistant token the student gives its next-token distribution; rank = 1 +
+number of vocabulary entries with a strictly higher logit than the teacher's
+token, clipped at 100 (`rank_clip_r`, the official default); surprisal =
+the token's negative log-probability. Per trajectory, average rank and
+average surprisal over the assistant tokens. Teacher score = mean of the
+per-trajectory average ranks divided by the mean of the per-trajectory
+average surprisals (the official ratio of means), and lower is better: the
+paper reads a low rank as alignment (the teacher's token is among the
+student's top choices) and a high surprisal as learning signal (the
+student would not have produced it), so a low ratio is "surprising but
+compatible". Because `evaluate_ranking.py` ranks higher = better, the sign
+is flipped at scoring time, as for GRACE and SCAS. Only assistant tokens
+are scored; task text and terminal output are context. This is the same
+assistant-span scoring their repo added for multi-round chat and agent
+data in March 2026.
+
+Until 2026-09-10 the sign was not flipped, so RSR was evaluated as higher
+= better and reported as Q35 > GLM > DS > CL (+0.18); with the paper's
+direction it is CL > DS > GLM > Q35, tau-b -0.18 on 8B (n=200 and
+n=1000) and 0.00 on 32B (n=200). The unsigned files are kept as
+`rsr__v1_unsigned.jsonl`.
+
 ---
 
 ## 7.6 GRACE

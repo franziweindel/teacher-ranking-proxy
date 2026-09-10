@@ -1676,12 +1676,15 @@ def _assistant_rank_surprisal(tok, model, chat, max_len) -> tuple:
 
 def compute_rsr(ctx) -> list[dict]:
     """Rank-Surprisal Ratio, official formulation: dataset RSR =
-    mean(per-trajectory avg rank) / mean(per-trajectory avg surprisal).
-    Per-task rows carry the components (ratio_num = avg rank, ratio_den =
-    avg surprisal); teacher-level aggregation MUST be ratio-of-means —
-    meta.aggregation tells evaluate_ranking.py to do exactly that. The
-    per-task 'score' (avg_rank/avg_surprisal) is a convenience view only.
-    Exact token ranks (top-100 comparison), no top-k API approximation."""
+    mean(per-trajectory avg rank) / mean(per-trajectory avg surprisal), and
+    LOWER RSR is better (paper: "lower RSR identifies trajectories that
+    better balance alignment and informativeness"). evaluate_ranking ranks
+    higher = better, so, as for grace and scas, the sign is flipped here:
+    ratio_num = -avg rank, ratio_den = avg surprisal, teacher score =
+    -(mean rank / mean surprisal); meta.aggregation = ratio_of_means makes
+    the evaluator aggregate exactly that. The per-task 'score'
+    (-avg_rank/avg_surprisal) is a convenience view only. Exact token ranks
+    (top-100 comparison), no top-k API approximation."""
     tok, model = _student_resources(ctx)
     max_len = 32768
     meta = {"method": "Rank-Surprisal Ratio",
@@ -1690,6 +1693,9 @@ def compute_rsr(ctx) -> list[dict]:
             "official_commit": UPSTREAM_COMMITS["rsr"]["commit"],
             "rank_clip": RSR_RANK_CLIP, "max_len": max_len,
             "direction": "higher_better", "student_dependent": True,
+            "score_definition": "-(mean rank / mean surprisal); the paper "
+                                "prefers LOWER RSR, negated so that higher "
+                                "= better as for every proxy here",
             "aggregation": "ratio_of_means"}
     rows = []
     for teacher in ctx["teachers"]:
@@ -1710,8 +1716,9 @@ def compute_rsr(ctx) -> list[dict]:
             avg_sur = (s_nll / n) if n else None
             rows.append({
                 "proxy": "rsr", "teacher": teacher, "task_id": task_id,
-                "score": (avg_rank / avg_sur) if n and avg_sur else None,
-                "ratio_num": avg_rank, "ratio_den": avg_sur,
+                "score": (-avg_rank / avg_sur) if n and avg_sur else None,
+                "ratio_num": -avg_rank if n else None, "ratio_den": avg_sur,
+                "avg_rank": avg_rank, "avg_surprisal": avg_sur,
                 "tokens_scored": n, "truncated": truncated, "meta": meta})
         print(f"[rsr] {teacher} done")
     return rows

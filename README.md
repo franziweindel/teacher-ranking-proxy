@@ -122,8 +122,9 @@ gpt-oss-120b judge.
 | egs_loop | +0.91 | DS | 0.76 | DS > Q35 > GLM > CL |
 | traj_length (more, tokens/turns) | +0.91 | DS | 1.00 | DS > Q35 > GLM > CL |
 | grace | +0.18 | Q35 | 0.03 | Q35 > GLM > DS > CL |
-| aslec_drop, rsr, scas, egs_post | +0.18 | Q35 | 0.00 | Q35 > GLM > DS > CL |
+| aslec_drop, scas, egs_post | +0.18 | Q35 | 0.00 | Q35 > GLM > DS > CL |
 | global_nll (GRAPE), local_nll k1-8, aslec_casl | -0.18 | Q35 | 0.00 | Q35 > GLM > CL > DS |
+| rsr | -0.18 | CL | 0.00 | CL > DS > GLM > Q35 |
 | teacher_bench, error_retry, cmd_error (fewer) | -0.91 | CL | 0.00 | CL > ... > DS |
 
 ### Qwen3-32B student: the tie-free ground truth separates SCRF from length
@@ -181,8 +182,8 @@ recover.
 
 Likelihood proxies under the 32B student (n=200, `docs/PROXY_RESULTS_n200.md`
 style run on `runs/terminal_lego-n200-s42/proxy_scores/Qwen__Qwen3-32B`):
-GRAPE, LALP k1-8, ASLEC-CASL all -0.33 (Q35 > GLM > CL > DS), ASLEC-DROP and RSR
-0.00 (Q35 > GLM > DS > CL). GRAPE and LALP k1-k4 at n=1000 give the same -0.33. The same-family bias (Qwen3.5-Plus first) persists
+GRAPE, LALP k1-8, ASLEC-CASL all -0.33 (Q35 > GLM > CL > DS), ASLEC-DROP 0.00
+(Q35 > GLM > DS > CL), RSR 0.00 (CL > DS > GLM > Q35). GRAPE and LALP k1-k4 at n=1000 give the same -0.33. The same-family bias (Qwen3.5-Plus first) persists
 with the larger Qwen student. SCAS and GRACE for 32B are not yet computed (the
 n=200 rerun crashed on a multi-GPU indexing bug in SCAS, see To dos).
 
@@ -203,7 +204,7 @@ n=200 rerun crashed on a multi-GPU indexing bug in SCAS, see To dos).
 | local_nll k2,4,8 | -0.18 | Q35 | 0.00 | Q35 > GLM > CL > DS |
 | aslec_drop | +0.18 | Q35 | 0.00 | Q35 > GLM > DS > CL |
 | aslec_casl | -0.18 | Q35 | 0.00 | Q35 > GLM > CL > DS |
-| rsr | +0.18 | Q35 | 0.00 | Q35 > GLM > DS > CL |
+| rsr | -0.18 | CL | 0.00 | CL > DS > GLM > Q35 |
 | scas | +0.18 | Q35 | 0.00 | Q35 > GLM > DS > CL |
 | grace | +0.55 | Q35 | 0.35 | Q35 > DS > GLM > CL |
 | SCRF-unrecovered, 11-cat (gpt-oss) | +0.91 | DS | 0.68 | DS > GLM > Q35 > CL |
@@ -212,7 +213,7 @@ n=200 rerun crashed on a multi-GPU indexing bug in SCAS, see To dos).
 ## Additional findings
 
 - traj_length reproduces the 8B ranking (tau-b +0.91) but that is pure length: DeepSeek writes the longest trajectories. Its GLM/Q35 order differs from SCRF's; for the 8B student that pair is a ground-truth tie, so no verdict, but for the 32B student the pair is ordered (GLM > Q35) and traj_length gets it wrong (+0.67) while SCRF and cmd_error get it right (+1.00). TOR (+0.91) and cmd_error are rates (per action, per command), so they are not mechanically length-driven; TOR reflects DeepSeek inspecting before acting more. cmd_error per command was ambiguous at n=200 (gpt-oss judge said GLM, qwen said DS) but resolves to a clean DS > GLM > Q35 > CL at n=1000 (tau-b +0.91, P=1.00) with the gpt-oss judge; the per-turn "DeepSeek first" seen earlier was a batching artifact.
-- Every student-likelihood proxy (GRAPE, LALP at all k, ASLEC, RSR, SCAS, GRACE) ranks Qwen3.5-Plus first for the Qwen3-8B student (same-family bias). The ones rerun under the Qwen3-32B student (GRAPE, LALP, ASLEC, RSR at n=200) do the same.
+- Every student-likelihood proxy except RSR (GRAPE, LALP at all k, ASLEC, SCAS, GRACE) ranks Qwen3.5-Plus first for the Qwen3-8B student (same-family bias); the ones rerun under the Qwen3-32B student (GRAPE, LALP, ASLEC at n=200) do the same. RSR, which the paper reads as lower = better, is the mirror image: Claude first, Qwen3.5-Plus last, for both students. (Until 2026-09-10 RSR was reported with the sign reversed, i.e. as Q35 > GLM > DS > CL.)
 - **SCRF works and stabilizes with n.** With the corrected per-command segmentation and the gpt-oss-120b judge, all SCRF variations reproduce the published ranking (tau-b +0.91, DeepSeek top-1) at both taxonomy granularities. At n=200 it is right but not yet bootstrap-stable (P(top-1) ~0.68 at 11-cat, ~0.50 at 91-subcat); at n=1000 every SCRF view is highly stable (P(top-1) 0.90-1.00, 11-cat > 91-subcat). For the 8B student it ties cmd_error and traj_length at the tau-b ceiling (+0.91): the GLM/Q35 ground-truth tie caps tau-b, so no proxy can be shown to separate there. The 32B ground truth has no tie and does separate them: SCRF +1.00 (all views), traj_length +0.67 (section above). q_S sensitivity to the number of student traces is still open: the 8B run with q_S from 1000 instead of 200 student traces hit the score cache and was not actually recomputed (job 4140407; the file is byte-identical to the 200-trace one), so it has to be rerun with the cache cleared.
 - **But it is judge-dependent.** With the Qwen3-32B judge the same proxy is weak at n=200 (tau-b -0.18..+0.55, GLM first). So the signal is real but hinges on judge quality at the error-labelling step. (An earlier version, before the segmentation fix, made SCRF look signal-less; that was a parsing artifact.)
 
