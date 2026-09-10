@@ -456,6 +456,7 @@ def _assistant_step_logprobs(tok, model, chat: list[dict], max_len: int):
     with torch.no_grad():
         logits = model(input_ids).logits[0]
     steps = []
+    template = _analysis_template_ids(tok)
     for start, end in spans:
         positions = list(range(max(start, 1), end))
         values = []
@@ -469,8 +470,31 @@ def _assistant_step_logprobs(tok, model, chat: list[dict], max_len: int):
                 1, gold[:, None]).squeeze(1)
             values.extend(float(value) for value in lp.cpu().tolist())
         if values:
-            steps.append(values)
+            steps.append({"logprobs": values,
+                          "content_offset": _analysis_content_offset(
+                              ids, positions, template)})
     return steps, truncated
+
+
+def _analysis_template_ids(tok) -> list[int]:
+    """Token ids of the Terminus-2 turn prefix up to the start of the
+    analysis text: '{\n  "analysis": "' (6 tokens for the Qwen tokenizers)."""
+    return tok('{\n  "analysis": "', add_special_tokens=False)["input_ids"]
+
+
+def _analysis_content_offset(ids: list[int], positions: list[int],
+                             template: list[int]) -> int:
+    """Index within the step's scored tokens of the first token of the
+    analysis text, i.e. the first token the teacher actually chose. The
+    template is searched in the first 40 tokens of the turn because the chat
+    template may put an empty <think> block before the JSON. Returns 0 (turn
+    start) when the turn is not a Terminus-2 JSON object."""
+    head = [ids[pos] for pos in positions[:40]]
+    n = len(template)
+    for off in range(max(0, len(head) - n + 1)):
+        if head[off:off + n] == template:
+            return off + n
+    return 0
 
 
 ASLEC_SKIP_TOKENS = 1  # PROXY_SPEC.md §7.4: "first token of every step".
@@ -480,11 +504,25 @@ ASLEC_SKIP_TOKENS = 1  # PROXY_SPEC.md §7.4: "first token of every step".
 ASLEC_OFFICIAL_SKIP_TOKENS = 2
 
 
-def _aslec_components(steps: list[list[float]],
-                      skip_tokens: int = ASLEC_SKIP_TOKENS) -> dict:
+ASLEC_STEP_STARTS = ("turn", "analysis")
+# "turn": a step starts at the first token of the assistant turn, i.e. the
+#   JSON brace of the Terminus-2 object (paper-literal mapping; near-certain
+#   token, so DROP changes little).
+# "analysis": a step starts at the first token of the analysis text, after
+#   the '{ "analysis": "' template, i.e. the first token the teacher chose;
+#   the template tokens are left out of every statistic. Primary score.
+
+
+def _aslec_components(steps: list, skip_tokens: int = ASLEC_SKIP_TOKENS,
+                      step_start: str = "analysis") -> dict:
     """Official ASLEC sufficient statistics (output_drop_score /
     output_causal_score in merge_cal_limo_ours.py) with ``skip_tokens`` head
-    tokens per step."""
+    tokens per step, where a step starts per ``step_start`` (see
+    ASLEC_STEP_STARTS)."""
+    if step_start == "analysis":
+        steps = [st["logprobs"][st["content_offset"]:] for st in steps]
+    else:
+        steps = [st["logprobs"] for st in steps]
     flat = [value for step in steps for value in step]
     heads = [value for step in steps for value in step[:skip_tokens]]
     non_heads = [value for step in steps for value in step[skip_tokens:]]
@@ -513,7 +551,8 @@ def _trajectory_aslec_components(ctx, teacher: str, task_id: str, rec: dict):
         tok, model = _student_resources(ctx)
         chat = _conversation_as_chat(rec["conversations"])
         steps, truncated = _assistant_step_logprobs(tok, model, chat, 32768)
-        cache[key] = _aslec_components(steps) | {"truncated": truncated}
+        cache[key] = {ss: _aslec_components(steps, step_start=ss)
+                      for ss in ASLEC_STEP_STARTS} | {"truncated": truncated}
     return cache[key]
 
 
@@ -613,7 +652,9 @@ def compute_local_nll(ctx, k: int) -> list[dict]:
 
 
 def compute_aslec(ctx, variant: str) -> list[dict]:
-    """ASLEC-DROP or ASLEC-CASL using assistant turns as step boundaries."""
+    """ASLEC-DROP or ASLEC-CASL using assistant turns as steps, for both
+    step-start conventions (ASLEC_STEP_STARTS) as score_views; the primary
+    ``score`` is the "analysis" convention."""
     import numpy as np
 
     upstream = UPSTREAM_COMMITS["aslec"]
@@ -627,29 +668,33 @@ def compute_aslec(ctx, variant: str) -> list[dict]:
             entries.append((teacher, task_id, components))
         print(f"[{variant}] token statistics ready for {teacher}")
 
-    valid = [components for _, _, components in entries
-             if components and components["mean_logprob"] is not None]
-    coefficients = None
-    adjusted = {}
-    if variant == "aslec_casl" and valid:
-        # Equivalent to sklearn LinearRegression used by the official repo:
-        # M ~ beta1*M_non + beta2*M_first + gamma*F + intercept.
-        x = np.asarray([[c["mean_nonfirst"], c["mean_first"],
-                         c["first_token_ratio"], 1.0] for c in valid],
-                       dtype=np.float64)
-        y = np.asarray([c["mean_logprob"] for c in valid], dtype=np.float64)
-        beta1, beta2, gamma, intercept = np.linalg.lstsq(
-            x, y, rcond=None)[0].tolist()
-        coefficients = {"beta1_nonfirst": beta1, "beta2_first": beta2,
-                        "gamma_first_token_ratio": gamma,
-                        "intercept": intercept,
-                        "fit_n_trajectories": len(valid),
-                        "fit_scope": "all teachers on fixed matched task pool"}
-        for teacher, task_id, components in entries:
-            if components and components["mean_logprob"] is not None:
-                adjusted[(teacher, task_id)] = (
-                    components["mean_logprob"] -
-                    gamma * components["first_token_ratio"])
+    coefficients = {}
+    adjusted = {ss: {} for ss in ASLEC_STEP_STARTS}
+    if variant == "aslec_casl":
+        for ss in ASLEC_STEP_STARTS:
+            valid = [c[ss] for _, _, c in entries
+                     if c and c[ss]["mean_logprob"] is not None]
+            if not valid:
+                continue
+            # Equivalent to sklearn LinearRegression used by the official
+            # repo: M ~ beta1*M_non + beta2*M_first + gamma*F + intercept.
+            x = np.asarray([[c["mean_nonfirst"], c["mean_first"],
+                             c["first_token_ratio"], 1.0] for c in valid],
+                           dtype=np.float64)
+            y = np.asarray([c["mean_logprob"] for c in valid],
+                           dtype=np.float64)
+            beta1, beta2, gamma, intercept = np.linalg.lstsq(
+                x, y, rcond=None)[0].tolist()
+            coefficients[ss] = {
+                "beta1_nonfirst": beta1, "beta2_first": beta2,
+                "gamma_first_token_ratio": gamma, "intercept": intercept,
+                "fit_n_trajectories": len(valid),
+                "fit_scope": "all teachers on fixed matched task pool"}
+            for teacher, task_id, c in entries:
+                if c and c[ss]["mean_logprob"] is not None:
+                    adjusted[ss][(teacher, task_id)] = (
+                        c[ss]["mean_logprob"] -
+                        gamma * c[ss]["first_token_ratio"])
 
     meta = {
         "method": "ASLEC-DROP" if variant == "aslec_drop" else "ASLEC-CASL",
@@ -660,6 +705,12 @@ def compute_aslec(ctx, variant: str) -> list[dict]:
         "official_driver_default_skip_tokens": ASLEC_OFFICIAL_SKIP_TOKENS,
         "max_len": 32768,
         "direction": "higher_better", "student_dependent": True,
+        "score_views": {
+            "turn": "step starts at the first token of the assistant turn "
+                    "(the JSON brace; paper-literal mapping)",
+            "analysis": "step starts at the first token of the analysis "
+                        "text, after the '{ \"analysis\": \"' template, "
+                        "which is left out of every statistic (primary)"},
         "adaptation": "Terminus assistant/action turns are reasoning steps",
     }
     if coefficients:
@@ -674,10 +725,14 @@ def compute_aslec(ctx, variant: str) -> list[dict]:
                          "task_id": task_id, "score": None,
                          "missing": True, "meta": meta})
             continue
-        score = (components["drop_score"] if variant == "aslec_drop" else
-                 adjusted.get((teacher, task_id)))
+        views = {}
+        for ss in ASLEC_STEP_STARTS:
+            views[ss] = (components[ss]["drop_score"]
+                         if variant == "aslec_drop"
+                         else adjusted[ss].get((teacher, task_id)))
         rows.append({"proxy": variant, "teacher": teacher,
-                     "task_id": task_id, "score": score,
+                     "task_id": task_id, "score": views["analysis"],
+                     "score_views": views,
                      "components": components, "meta": meta})
     return rows
 

@@ -663,18 +663,30 @@ Map reasoning-step boundaries to Terminus-2 assistant/action turns and evaluate 
 
 Implementation (`compute_aslec`, official `output_drop_score` /
 `output_causal_score` reimplemented and verified identical on real
-trajectories): a step is one assistant turn and "first token" is the first
-token of the turn (`skip_tokens=1`; the authors' driver defaults to 2).
-ASLEC-DROP is the mean log-probability over all assistant tokens except the
-first token of every turn. ASLEC-CASL fits, over all trajectories of all
-teachers, a linear regression of the GRAPE score (§7.1) on the first-token
-ratio, turns divided by assistant tokens, and subtracts the fitted effect of
-that ratio, so it is GRAPE with the turn-length trend removed. Note that a
-Terminus-2 turn starts with the JSON brace and the `analysis` key, so its
-first token is near-certain, not the low-probability step opener the paper
-has in mind; DROP is therefore close to GRAPE here, while CASL still acts as
-a turn-length correction. n=1000, 8B: DROP +0.18, CASL -0.18, both
-Qwen3.5-Plus first, as GRAPE.
+trajectories): a step is one assistant turn and one token is skipped per step
+(`skip_tokens=1`, the paper's "first token"; the authors' run script defaults
+to 2). ASLEC-DROP is the mean log-probability over the step tokens except
+the first of every step. ASLEC-CASL fits, over all trajectories of all
+teachers, a linear regression of the mean log-probability on the first-token
+ratio, steps divided by tokens, and subtracts the fitted effect of that
+ratio, so it is GRAPE with the step-length trend removed.
+
+Where a step starts is reported in two `score_views`, because a Terminus-2
+turn is a JSON object that opens with the brace and the `analysis` key, so
+its literal first token is near-certain, not the low-probability step opener
+the paper has in mind:
+
+- `turn`: the step starts at the first token of the assistant turn, the
+  brace (paper-literal mapping).
+- `analysis` (primary `score`): the step starts at the first token of the
+  analysis text, after the `{ "analysis": "` template, i.e. the first token
+  the teacher chose; the template tokens are left out of every statistic.
+  The template is located as a token subsequence in the first 40 tokens of
+  the turn (the chat template may put an empty think block before it); a
+  turn without it falls back to the turn start.
+
+n=1000, 8B, `turn` view: DROP +0.18, CASL -0.18, both Qwen3.5-Plus first,
+as GRAPE. `analysis` view: pending recompute.
 
 ---
 
