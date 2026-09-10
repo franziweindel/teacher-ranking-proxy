@@ -735,11 +735,34 @@ Principled Teacher Selection for Knowledge Distillation
 arXiv:2511.02833
 ```
 
-Start from the student’s cross-entropy/NLL on each teacher trajectory and differentiate that loss w.r.t. the student parameters to obtain one gradient vector per trajectory. For each teacher, GRACE treats these vectors as a gradient distribution over that teacher’s data. It repeatedly splits the data by task/prompt into a large reference set and a held-out set (so trajectories from the same task stay together; one trajectory per task is also valid), uses the reference gradients to estimate the teacher’s typical gradient-direction distribution, and then measures whether held-out trajectories induce gradients that are both reasonably sized and lie in directions supported by that distribution. Lower GRACE = better: the teacher induces stable, generalizable student updates across tasks rather than large or outlier updates. The exact score is in GRACE/GRACE_computation.py (grace(...)); NLL → gradient extraction is in GRACE/gradient_computation.py.
+One gradient vector per trajectory: the student's NLL over the trajectory's
+assistant tokens, one backward pass, the gradient w.r.t. the student's
+LoRA-B weights, randomly projected to 512 numbers. A teacher with n tasks
+is therefore an n x 512 matrix, one row per task (one trajectory per task,
+so the paper's grouping by prompt is trivial).
 
-Use official code where possible: https://github.com/abhishekpanigrahi1996/GRACE
+The score, computed ten times with seeds 0-9 and averaged: shuffle the
+tasks, hold out 10 % as the test set and keep the rest as the reference
+set; scale each reference gradient to unit length so only its direction
+counts; take the 512 x 512 covariance of the reference gradients, which
+describes the directions this teacher's trajectories usually push the
+student in; then, for each held-out gradient (not normalized, so its size
+counts), take its squared Mahalanobis norm under that covariance, i.e. its
+components along the reference directions weighted by one over the
+reference variance there (smoothed with 1e-3 so near-empty directions do
+not explode), and average over the held-out trajectories (this equals
+trace(pinv(Cov_ref) Cov_test)). Lower GRACE = better: the teacher's updates
+on unseen tasks are modest and lie within the directions its other tasks
+already established, i.e. stable, generalizable teaching; large or
+off-direction updates score high. There is no per-trajectory score, the
+number exists only for the whole set; it is negated for `evaluate_ranking.py`.
 
-Do not invent an unsupported per-trajectory approximation.
+Implementation: official `grace()` from GRACE/GRACE_computation.py called
+unchanged (n_gen_per_prompt=1, 10 splits, test fraction 0.1, smoothing
+1e-3); the gradient step (NLL -> LoRA-B gradient -> TRAK Rademacher
+projection to 512, official `--use-lora` option) is re-done in our code
+because their script reads their own data format, with a chunked
+cross-entropy so 32k-token trajectories fit one GPU.
 
 ---
 
