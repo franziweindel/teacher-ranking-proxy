@@ -397,9 +397,13 @@ before editing it, listing a directory before creating a file inside it,
 reading a script before running it. Table 3 reports TOR per teacher:
 DeepSeek-V3.2 13.4 %, GLM-5 7.3 %, Qwen3.5-Plus 6.5 %, Claude Opus 4.6 2.5 %.
 
-**What the paper leaves open, and the options implemented.** Each open
-choice is a switch; the first three are the axes of the predeclared views
-(`<actions>_<align>_<window>`), the last two have one implementation.
+**What the paper leaves open, and the options implemented.** Five choices
+are not fixed by the paper. For the first three we implemented several
+alternatives, and every view picks one of each; the view name spells out the
+picks in that order, `<actions>_<align>_<window>`, so `list_exact_turn2` is
+the `list` action set with `exact` alignment and a two-turn window. For the
+last two choices there is a single implementation and nothing to pick, so
+they do not appear in the view names.
 
 - *Which commands count as actions.* `list` = only the state-changing
   programs (file edits, installs, script runs, or a `>` redirect); `all` =
