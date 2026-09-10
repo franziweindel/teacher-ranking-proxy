@@ -703,22 +703,24 @@ Reference:
 Which Reasoning Trajectories Teach Students to Reason Better?
 arXiv:2601.14249
 ```
-Observation that effective trajectories typically balance learning signal strength and behavioral alignment by combining low absolute probability with relatively high-ranked tokens under the student model → i.e. student has high entropy (not so confident what it should do, then a low prob token can have high rank) → so kind of “I wasn't going to confidently say this, but among the things I might reasonably have said, this is near the top.
-
-Propose RSR  defined as the ratio of a trajectory’s average tokenwise rank to its average negative log-likelihood. 
+For every assistant token the student is asked two things: how probable was
+the teacher's token, measured as surprisal, the negative log-probability,
+and where did that token sit in the student's own preference list, measured
+as its rank, 1 if it was the student's top choice, clipped at 100. Average
+both over the trajectory and divide: mean rank over mean surprisal. We want
+a low ratio, surprising but compatible: the student would not have
+confidently written this token (high surprisal, a learning signal), yet
+among the things it might reasonably have said it is near the top (low
+rank, alignment). A trajectory the student finds easy scores badly on the
+first, one it finds alien scores badly on the second.
 
 Implementation: their `rsr_cal.py` (github.com/UmeanNever/RankSurprisalRatio
 @59a7c4c, which scores assistant spans only, so it already covers
 multi-round chat and agent data) reimplemented in `compute_rsr` and verified
-exact on real trajectories. For every assistant token the student is asked
-two things: how probable was the teacher's token, measured as surprisal, the
-negative log-probability, and where did that token sit in the student's own
-preference list, measured as its rank, 1 if it was the student's top choice,
-clipped at 100. Average both over the trajectory and divide: mean rank over
-mean surprisal. Teacher score = mean of the per-trajectory average ranks
-over the mean of their average surprisals. We want a low ratio: surprising
-but compatible. The sign is flipped at scoring time because
-`evaluate_ranking.py` ranks higher = better (as for GRACE and SCAS).
+exact on real trajectories. Teacher score = mean of the per-trajectory
+average ranks over the mean of their average surprisals. The sign is
+flipped at scoring time because `evaluate_ranking.py` ranks higher = better
+(as for GRACE and SCAS).
 
 ---
 
