@@ -90,6 +90,11 @@ probability the top teacher is correct.
 
 GT (8B): DS > {GLM ≈ Q35} > CL.
 
+tor, egs_post and egs_loop are reported in one predeclared view,
+`list_strict_prevturn`: state-changing actions, the paper's alignment
+examples, observation in any earlier response (chosen a priori, not by
+agreement with the ground truth); all 24 views are in PROXY_SPEC 6.5.
+
 ### n=1000, Qwen3-8B student (headline)
 
 At n=1000 the field separates into a clear top tier and the rest. All six SCRF
@@ -113,12 +118,12 @@ gpt-oss-120b judge.
 | SCRF-failed, 11-cat | +0.91 | DS | 0.99 | DS > GLM > Q35 > CL |
 | SCRF-failed, 91-subcat | +0.91 | DS | 0.90 | DS > GLM > Q35 > CL |
 | cmd_error more (gpt-oss) | +0.91 | DS | 1.00 | DS > GLM > Q35 > CL |
-| tor | +0.91 | DS | 0.53 | DS > Q35 > GLM > CL |
+| tor | +0.91 | DS | 0.99 | DS > Q35 > GLM > CL |
+| egs_loop | +0.91 | DS | 0.76 | DS > Q35 > GLM > CL |
 | traj_length (more, tokens/turns) | +0.91 | DS | 1.00 | DS > Q35 > GLM > CL |
-| egs_loop | +0.55 | Q35 | 0.04 | Q35 > DS > GLM > CL |
 | grace | +0.18 | Q35 | 0.03 | Q35 > GLM > DS > CL |
-| aslec_drop, rsr, scas | +0.18 | Q35 | 0.00 | Q35 > GLM > DS > CL |
-| global_nll (GRAPE), local_nll k1-8, aslec_casl, egs_post | -0.18 | Q35 | 0.00 | Q35 > GLM > CL > DS |
+| aslec_drop, rsr, scas, egs_post | +0.18 | Q35 | 0.00 | Q35 > GLM > DS > CL |
+| global_nll (GRAPE), local_nll k1-8, aslec_casl | -0.18 | Q35 | 0.00 | Q35 > GLM > CL > DS |
 | teacher_bench, error_retry, cmd_error (fewer) | -0.91 | CL | 0.00 | CL > ... > DS |
 
 ### Qwen3-32B student: the tie-free ground truth separates SCRF from length
@@ -133,7 +138,7 @@ the same 1000 tasks and gpt-oss-120b judge as the 8B run.
 | SCRF (all six views) | +1.00 | DS | 0.97-0.99 | DS > GLM > Q35 > CL | yes |
 | cmd_error more (gpt-oss) | +1.00 | DS | 1.00 | DS > GLM > Q35 > CL | yes |
 | traj_length (more, tokens/turns) | +0.67 | DS | 1.00 | DS > Q35 > GLM > CL | no |
-| tor | +0.67 | DS | 0.53 | DS > Q35 > GLM > CL | no |
+| tor | +0.67 | DS | 0.99 | DS > Q35 > GLM > CL | no |
 | teacher_bench | -0.67 | CL | 0.00 | CL > GLM > Q35 > DS | - |
 | error_retry (raw upstream score) | -1.00 | CL | 0.00 | CL > Q35 > GLM > DS | - |
 | error_retry (turn-aware views) | -0.67 | CL | 0.00 | CL > GLM > Q35 > DS | - |
@@ -186,13 +191,13 @@ n=200 rerun crashed on a multi-GPU indexing bug in SCAS, see To dos).
 | proxy | tau-b | top | P(top) | predicted order |
 |---|---|---|---|---|
 | traj_length (more) | +0.91 | DS | 1.00 | DS > Q35 > GLM > CL |
-| tor | +0.91 | DS | 0.82 | DS > Q35 > GLM > CL |
+| tor | +0.91 | DS | 0.89 | DS > Q35 > GLM > CL |
 | teacher_bench | -0.91 | CL | 0.00 | CL > GLM > Q35 > DS |
 | error_retry | -0.91 | CL | 0.00 | CL > Q35 > GLM > DS |
 | cmd_error more (gpt-oss) | +0.55 | GLM | 0.43 | GLM > DS > Q35 > CL |
 | cmd_error more (qwen) | +0.91 | DS | 0.50 | DS > GLM > Q35 > CL |
-| egs_post | -0.18 | Q35 | 0.00 | Q35 > GLM > CL > DS |
-| egs_loop | +0.55 | Q35 | 0.11 | Q35 > DS > GLM > CL |
+| egs_post | +0.18 | Q35 | 0.02 | Q35 > GLM > DS > CL |
+| egs_loop | +0.55 | Q35 | 0.41 | Q35 > DS > GLM > CL |
 | global_nll (GRAPE) | -0.18 | Q35 | 0.00 | Q35 > GLM > CL > DS |
 | local_nll k1 | -0.55 | Q35 | 0.00 | Q35 > CL > GLM > DS |
 | local_nll k2,4,8 | -0.18 | Q35 | 0.00 | Q35 > GLM > CL > DS |
