@@ -448,7 +448,7 @@ contains slashes). Relative paths are made absolute with the cwd of that
 command, `~` is expanded, trailing slashes are dropped, and `-`, `/dev/null`
 and option flags are ignored. Tokens containing shell expansions (`$`,
 backticks, parentheses) are discarded rather than guessed. A command can
-yield several paths; an action is supported if any of them aligns with any
+give several paths; an action is supported if any of them aligns with any
 path of an earlier observation.
 
 **Comparison with the paper (n=1000, per-teacher mean, %).**
@@ -495,10 +495,6 @@ ground truths, tau-b follows from the predicted order: DS > Q35 > GLM > CL
 (the `list_*` views except turn1) gives +0.91 on 8B and +0.67 on 32B;
 Q35 > DS > GLM > CL (all other views) gives +0.55 / +0.33. Rankings derived
 from tor therefore describe our operationalizations, not the paper's metric.
-
-Do **not** add the paper's separate three-assistant-turn look-ahead window
-to TOR unless upstream implementation confirms that it is part of the metric
-(it is used by egs_post, §6.6, not here).
 
 ---
 
