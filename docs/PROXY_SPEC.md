@@ -567,8 +567,8 @@ Score each existing teacher trajectory using the likelihood of the teacher-gener
 Loss applies only to teacher-generated assistant tokens, not task instruction, system text, terminal observations, environment outputs. 
 
 Normalization as in the paper: add up the log-probabilities of the
-response tokens and divide by the number of tokens, i.e. the mean
-log-probability per token. 
+teacher's assistant tokens and divide by the number of assistant tokens,
+i.e. the mean log-probability per assistant token.
 
 ---
 
