@@ -735,38 +735,31 @@ Principled Teacher Selection for Knowledge Distillation
 arXiv:2511.02833
 ```
 
-One gradient vector per trajectory. The student is wrapped with LoRA as in
-the paper's `--use-lora` option: six weight matrices in every layer (the
-query, key and value projections of attention and the up, gate and down
-projections of the MLP) get a small correction B x A, with A and B thin
-matrices of rank 16 and B initialised to zero, so the model is unchanged
-until fine-tuned. For one trajectory, compute the student's NLL over its
-assistant tokens, one backward pass, and take the gradient with respect to
-the entries of all the B matrices only (a few million numbers, strung out
-as one long vector). That vector is then shrunk to 512 numbers with a fixed
-random table of +1/-1 signs (512 rows, one column per gradient entry, drawn
-once and reused): output i is the sum of all gradient entries, each
-multiplied by the sign in row i. Random signs keep lengths and angles
-between gradient vectors nearly unchanged, so the 512 numbers stand in for
-the full gradient. A teacher with n tasks is therefore an n x 512 matrix,
-one row per task (one trajectory per task, so the paper's grouping by
-prompt is trivial).
+Idea: a good teacher pushes the student in a consistent direction. Take
+the gradient each teacher trajectory would induce in the student, learn
+from most of them which directions this teacher usually pushes in, and
+check whether the remaining ones push the same way with a modest step.
+Low GRACE = they do, the teacher's updates generalize across tasks; high =
+new tasks send the student somewhere new or with oversized steps.
 
-The score, computed ten times with seeds 0-9 and averaged: shuffle the
-tasks, hold out 10 % as the test set and keep the rest as the reference
-set; scale each reference gradient to unit length so only its direction
-counts; take the 512 x 512 covariance of the reference gradients, which
-describes the directions this teacher's trajectories usually push the
-student in; then, for each held-out gradient (not normalized, so its size
-counts), take its squared Mahalanobis norm under that covariance, i.e. its
-components along the reference directions weighted by one over the
-reference variance there (smoothed with 1e-3 so near-empty directions do
-not explode), and average over the held-out trajectories (this equals
-trace(pinv(Cov_ref) Cov_test)). Lower GRACE = better: the teacher's updates
-on unseen tasks are modest and lie within the directions its other tasks
-already established, i.e. stable, generalizable teaching; large or
-off-direction updates score high. There is no per-trajectory score, the
-number exists only for the whole set; it is negated for `evaluate_ranking.py`.
+Gradient per trajectory: the student is wrapped with LoRA (the paper's
+`--use-lora` option, rank 16 on the attention and MLP projections of every
+layer). Compute the student's NLL over the trajectory's assistant tokens,
+one backward pass, gradient with respect to the LoRA B matrices only.
+Shrink that gradient (millions of numbers) to 512 by multiplying with a
+fixed random +1/-1 matrix, which keeps lengths and angles between
+gradients nearly unchanged. A teacher with n tasks is then an n x 512
+matrix, one row per trajectory.
+
+Score, averaged over 10 random splits: hold out 10 % of the rows, scale
+the rest to unit length and take their 512 x 512 covariance; its strong
+eigen-directions are where this teacher's trajectories usually push. For
+each held-out gradient, sum its squared components along those directions
+divided by the variance there (a small smoothing keeps empty directions
+finite), so a gradient that is large or points where the reference never
+pointed costs a lot; average over the held-out rows (= trace(pinv(Cov_ref)
+Cov_test)). No per-trajectory score exists; the teacher score is negated
+for `evaluate_ranking.py`.
 
 Implementation: official `grace()` from GRACE/GRACE_computation.py called
 unchanged (n_gen_per_prompt=1, 10 splits, test fraction 0.1, smoothing
