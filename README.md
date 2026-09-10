@@ -74,23 +74,21 @@ How we evaluate: score every teacher's trajectory for a fixed set of matched
 Terminal-Lego tasks, aggregate per teacher, and compare the resulting teacher
 ranking to the published SFT ranking for that student
 (https://arxiv.org/pdf/2606.03461). Two task samples (200 and 1000 tasks,
-seed 42; n=1000 is the headline) and two students, whose ground-truth
-rankings differ in one useful way: for the 8B student GLM-5 and Qwen3.5-Plus
-are tied, for the 32B student they are not.
+seed 42) and two students with ground truth ranking: 
 
     Qwen3-8B:  DeepSeek-V3.2 > {GLM-5 ≈ Qwen3.5-Plus} > Claude Opus 4.6
     Qwen3-32B: DeepSeek-V3.2 > GLM-5 > Qwen3.5-Plus > Claude Opus 4.6
 
 tau-b is Kendall correlation with the GT order (+1 identical, -1 reversed);
-"top" is the predicted best teacher; P = bootstrap probability the top
-teacher is correct. Two proxies use an LLM judge, cmd_error (did the command
+P = share of bootstrap draws (tasks resampled with replacement, all four
+teachers' trajectories of a task drawn together, ranking recomputed) in
+which the predicted best teacher is in the ground truth's top group. Two proxies use an LLM judge, cmd_error (did the command
 fail) and SCRF (error category, recovered or not); all tables below use the
 gpt-oss-120b judge unless stated, the judge ablation is its own section.
 SCRF needs the student's own traces for q_S: the 8B tables use the 8B
 student's n=200 traces, the 32B tables the 32B student's n=200 traces. tor,
-egs_post and egs_loop are reported in one predeclared view,
-`list_strict_prevturn` (state-changing actions, the paper's alignment
-examples, observation in any earlier response; chosen a priori, all 24 views
+egs_post and egs_loop are reported in one view,
+`list_strict_prevturn` (all 24 views
 in PROXY_SPEC 6.5). Metric definitions in `docs/PROXY_RESULTS_n200.md`.
 
 ### Qwen3-8B student
@@ -99,25 +97,25 @@ GT: DS > {GLM ≈ Q35} > CL. Because of the tie, tau-b saturates at +0.91 and
 cannot separate a proxy that predicts GLM > Q35 from one that predicts
 Q35 > GLM.
 
-#### n=1000 (headline), all proxies, judge gpt-oss-120b
+#### n=1000, all proxies, judge gpt-oss-120b
 
-| proxy | tau-b | top | P(top) | predicted order |
-|---|---|---|---|---|
-| SCRF-all, 11-cat | +0.91 | DS | 1.00 | DS > GLM > Q35 > CL |
-| SCRF-all, 91-subcat | +0.91 | DS | 0.97 | DS > GLM > Q35 > CL |
-| SCRF-unrecovered, 11-cat | +0.91 | DS | 1.00 | DS > GLM > Q35 > CL |
-| SCRF-unrecovered, 91-subcat | +0.91 | DS | 0.96 | DS > GLM > Q35 > CL |
-| SCRF-failed, 11-cat | +0.91 | DS | 0.99 | DS > GLM > Q35 > CL |
-| SCRF-failed, 91-subcat | +0.91 | DS | 0.90 | DS > GLM > Q35 > CL |
-| cmd_error (more errors) | +0.91 | DS | 1.00 | DS > GLM > Q35 > CL |
-| tor | +0.91 | DS | 0.99 | DS > Q35 > GLM > CL |
-| egs_loop | +0.91 | DS | 0.76 | DS > Q35 > GLM > CL |
-| traj_length (more, tokens/turns) | +0.91 | DS | 1.00 | DS > Q35 > GLM > CL |
-| grace | +0.18 | Q35 | 0.03 | Q35 > GLM > DS > CL |
-| scas, egs_post | +0.18 | Q35 | 0.00 | Q35 > GLM > DS > CL |
-| global_nll (GRAPE), local_nll k1-8, aslec_drop, aslec_casl | -0.18 | Q35 | 0.00 | Q35 > GLM > CL > DS |
-| rsr | -0.18 | CL | 0.00 | CL > DS > GLM > Q35 |
-| teacher_bench, error_retry, cmd_error (fewer) | -0.91 | CL | 0.00 | CL > ... > DS |
+| proxy | tau-b | P(top) | predicted order |
+|---|---|---|---|
+| SCRF-all, 11-cat | +0.91 | 1.00 | DS > GLM > Q35 > CL |
+| SCRF-all, 91-subcat | +0.91 | 0.97 | DS > GLM > Q35 > CL |
+| SCRF-unrecovered, 11-cat | +0.91 | 1.00 | DS > GLM > Q35 > CL |
+| SCRF-unrecovered, 91-subcat | +0.91 | 0.96 | DS > GLM > Q35 > CL |
+| SCRF-failed, 11-cat | +0.91 | 0.99 | DS > GLM > Q35 > CL |
+| SCRF-failed, 91-subcat | +0.91 | 0.90 | DS > GLM > Q35 > CL |
+| cmd_error (more errors) | +0.91 | 1.00 | DS > GLM > Q35 > CL |
+| tor | +0.91 | 0.99 | DS > Q35 > GLM > CL |
+| egs_loop | +0.91 | 0.76 | DS > Q35 > GLM > CL |
+| traj_length (more, tokens/turns) | +0.91 | 1.00 | DS > Q35 > GLM > CL |
+| grace | +0.18 | 0.03 | Q35 > GLM > DS > CL |
+| scas, egs_post | +0.18 | 0.00 | Q35 > GLM > DS > CL |
+| global_nll (GRAPE), local_nll k1-8, aslec_drop, aslec_casl | -0.18 | 0.00 | Q35 > GLM > CL > DS |
+| rsr | -0.18 | 0.00 | CL > DS > GLM > Q35 |
+| teacher_bench, error_retry, cmd_error (fewer) | -0.91 | 0.00 | CL > ... > DS |
 
 All six SCRF views, cmd_error, tor, egs_loop and traj_length reach the
 ceiling; SCRF matches but cannot beat the cheaper cmd_error and traj_length
@@ -126,24 +124,23 @@ except RSR puts Qwen3.5-Plus first (same-family bias); RSR puts Claude first.
 
 #### n=200, all proxies, judge gpt-oss-120b
 
-| proxy | tau-b | top | P(top) | predicted order |
-|---|---|---|---|---|
-| SCRF-unrecovered, 11-cat | +0.91 | DS | 0.68 | DS > GLM > Q35 > CL |
-| SCRF (other five views) | +0.91 | DS | 0.47-0.67 | DS > GLM > Q35 > CL |
-| traj_length (more) | +0.91 | DS | 1.00 | DS > Q35 > GLM > CL |
-| tor | +0.91 | DS | 0.89 | DS > Q35 > GLM > CL |
-| cmd_error (more errors) | +0.55 | GLM | 0.39 | GLM > DS > Q35 > CL |
-| egs_loop | +0.55 | Q35 | 0.41 | Q35 > DS > GLM > CL |
-| grace | +0.55 | Q35 | 0.35 | Q35 > DS > GLM > CL |
-| scas, egs_post | +0.18 | Q35 | 0.00-0.02 | Q35 > GLM > DS > CL |
-| global_nll (GRAPE), local_nll k2-8, aslec_drop, aslec_casl | -0.18 | Q35 | 0.00 | Q35 > GLM > CL > DS |
-| local_nll k1 | -0.55 | Q35 | 0.00 | Q35 > CL > GLM > DS |
-| rsr | -0.18 | CL | 0.00 | CL > DS > GLM > Q35 |
-| teacher_bench, error_retry | -0.91 | CL | 0.00 | CL > ... > DS |
+| proxy | tau-b | P(top) | predicted order |
+|---|---|---|---|
+| SCRF-unrecovered, 11-cat | +0.91 | 0.68 | DS > GLM > Q35 > CL |
+| SCRF (other five views) | +0.91 | 0.47-0.67 | DS > GLM > Q35 > CL |
+| traj_length (more) | +0.91 | 1.00 | DS > Q35 > GLM > CL |
+| tor | +0.91 | 0.89 | DS > Q35 > GLM > CL |
+| cmd_error (more errors) | +0.55 | 0.39 | GLM > DS > Q35 > CL |
+| egs_loop | +0.55 | 0.41 | Q35 > DS > GLM > CL |
+| grace | +0.55 | 0.35 | Q35 > DS > GLM > CL |
+| scas, egs_post | +0.18 | 0.00-0.02 | Q35 > GLM > DS > CL |
+| global_nll (GRAPE), local_nll k2-8, aslec_drop, aslec_casl | -0.18 | 0.00 | Q35 > GLM > CL > DS |
+| local_nll k1 | -0.55 | 0.00 | Q35 > CL > GLM > DS |
+| rsr | -0.18 | 0.00 | CL > DS > GLM > Q35 |
+| teacher_bench, error_retry | -0.91 | 0.00 | CL > ... > DS |
 
 n=200 is right but not bootstrap-stable for the proxies that carry signal;
-n=1000 resolves that (P(top) 0.90-1.00) without rescuing the ones that were
-wrong.
+n=1000 resolves that (P(top) 0.90-1.00).
 
 #### Judge ablation, n=200
 
@@ -172,18 +169,18 @@ tied at +0.91 above can be told apart. Judge gpt-oss-120b; q_S(32B) from the
 
 #### n=1000
 
-| proxy | tau-b | top | P(top) | predicted order | GLM > Q35 right? |
-|---|---|---|---|---|---|
-| SCRF (all six views) | +1.00 | DS | 0.97-0.99 | DS > GLM > Q35 > CL | yes |
-| cmd_error (more errors) | +1.00 | DS | 1.00 | DS > GLM > Q35 > CL | yes |
-| traj_length (more, tokens/turns) | +0.67 | DS | 1.00 | DS > Q35 > GLM > CL | no |
-| tor | +0.67 | DS | 0.99 | DS > Q35 > GLM > CL | no |
-| egs_loop, egs_post | pending (not evaluated against the 32B GT yet) | | | | |
-| global_nll (GRAPE), local_nll k1-4 | -0.33 | Q35 | 0.00 | Q35 > GLM > CL > DS | - |
-| local_nll k8, aslec_drop, aslec_casl, rsr, scas | pending (job 4151812) | | | | |
-| grace | not computed for 32B (fp32 TRAK gradients risk OOM) | | | | |
-| teacher_bench | -0.67 | CL | 0.00 | CL > GLM > Q35 > DS | - |
-| error_retry (raw / turn-aware) | -1.00 / -0.67 | CL | 0.00 | CL first | - |
+| proxy | tau-b | P(top) | predicted order | GLM > Q35 right? |
+|---|---|---|---|---|
+| SCRF (all six views) | +1.00 | 0.97-0.99 | DS > GLM > Q35 > CL | yes |
+| cmd_error (more errors) | +1.00 | 1.00 | DS > GLM > Q35 > CL | yes |
+| traj_length (more, tokens/turns) | +0.67 | 1.00 | DS > Q35 > GLM > CL | no |
+| tor | +0.67 | 0.99 | DS > Q35 > GLM > CL | no |
+| egs_loop, egs_post | pending (not evaluated against the 32B GT yet) | | | |
+| global_nll (GRAPE), local_nll k1-4 | -0.33 | 0.00 | Q35 > GLM > CL > DS | - |
+| local_nll k8, aslec_drop, aslec_casl, rsr, scas | pending (job 4151812) | | | |
+| grace | not computed for 32B (fp32 TRAK gradients risk OOM) | | | |
+| teacher_bench | -0.67 | 0.00 | CL > GLM > Q35 > DS | - |
+| error_retry (raw / turn-aware) | -1.00 / -0.67 | 0.00 | CL first | - |
 
 SCRF and cmd_error recover the full 32B ranking; traj_length and tor get top
 and bottom right but swap the middle pair, exactly the pair the 8B tie hid.
@@ -193,12 +190,12 @@ those two needs a teacher that errs a lot but does not recover.
 
 #### n=200
 
-| proxy | tau-b | top | P(top) | predicted order |
-|---|---|---|---|---|
-| global_nll (GRAPE), local_nll k1-8, aslec_drop, aslec_casl | -0.33 | Q35 | 0.00 | Q35 > GLM > CL > DS |
-| scas | 0.00 | Q35 | 0.00 | Q35 > GLM > DS > CL |
-| rsr | 0.00 | CL | 0.00 | CL > DS > GLM > Q35 |
-| SCRF, cmd_error, tor, egs, traj_length at n=200 vs the 32B GT | not tabulated (student-independent ones are the n=200 8B numbers re-scored against the 32B order; SCRF-32B exists only at n=1000) | | | |
+| proxy | tau-b | P(top) | predicted order |
+|---|---|---|---|
+| global_nll (GRAPE), local_nll k1-8, aslec_drop, aslec_casl | -0.33 | 0.00 | Q35 > GLM > CL > DS |
+| scas | 0.00 | 0.00 | Q35 > GLM > DS > CL |
+| rsr | 0.00 | 0.00 | CL > DS > GLM > Q35 |
+| SCRF, cmd_error, tor, egs, traj_length at n=200 vs the 32B GT | not tabulated (student-independent ones are the n=200 8B numbers re-scored against the 32B order; SCRF-32B exists only at n=1000) | | |
 
 The same-family bias (Qwen3.5-Plus first) persists with the larger Qwen
 student.
