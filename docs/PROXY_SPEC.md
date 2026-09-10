@@ -727,11 +727,6 @@ time, as for GRACE and SCAS. Only assistant tokens are scored; task text
 and terminal output are context, the same assistant-span scoring their
 repo added for multi-round chat and agent data in March 2026.
 
-Until 2026-09-10 the sign was not flipped, so RSR was evaluated as higher
-= better and reported as Q35 > GLM > DS > CL (+0.18); with the paper's
-direction it is CL > DS > GLM > Q35, tau-b -0.18 on 8B (n=200 and
-n=1000) and 0.00 on 32B (n=200). The unsigned files are kept as
-`rsr__v1_unsigned.jsonl`.
 
 ---
 
