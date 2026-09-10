@@ -566,12 +566,12 @@ Score each existing teacher trajectory using the likelihood of the teacher-gener
 
 Loss applies only to teacher-generated assistant tokens, not task instruction, system text, terminal observations, environment outputs. 
 
-Normalization as in the paper: GRAPE ranks responses by the conditional
-log-probability under the base model "normalized by response length", which
-it notes is the same as ranking by perplexity, exp(-(1/N) sum_t log
-P(x_t | x_<t)). So the score is the mean log-probability per scored token,
-not the sum, so that long trajectories are not penalized for having more
-tokens. Implemented as `-sum_nll / assistant_tokens_scored` in
+Normalization as in the paper (length-normalized log-probability, i.e.
+perplexity ranking). In plain terms: add up the log-probabilities of the
+response tokens, divide by the number of tokens, and take the mean. Here the
+response tokens are the teacher's assistant tokens across the whole
+trajectory, conditioned on everything before them (task text, earlier turns,
+terminal output). Implemented as `-sum_nll / assistant_tokens_scored` in
 `compute_global_nll`; the sum and the token count are written with every row.
 
 ---
@@ -614,26 +614,25 @@ arXiv:2510.03988
 ```
 Originally designed for multi-teacher reasoning distillation.
 
-The method argues that full-trajectory student likelihood, as used in GRAPE-style scoring, can become unreliable for long heterogeneous traces because later tokens are conditioned on the entire preceding teacher trajectory. It therefore proposes Local Average Log Probability (LALP): score the teacher response locally, average token log-probabilities within each reasoning step, then average step scores equally.
+The paper argues that a single mean over the whole trajectory (GRAPE, §7.1)
+becomes unreliable for long traces, because later tokens are conditioned on
+the entire preceding teacher output, and proposes Local Average Log
+Probability (LALP) instead: score each reasoning step on its own and give
+every step equal weight.
 
-For agentic trajectories, treat each teacher assistant/action turn as one reasoning step. Tool/environment outputs are conditioning context but are not scored.
+Implementation (`compute_local_nll`): each teacher assistant turn is one
+step. For every assistant turn, the student scores that turn's tokens the
+GRAPE way, mean log-probability per token, but conditioned only on the task
+prompt plus the previous k assistant turns with their terminal outputs, not
+the full history. The trajectory score is the plain mean of the per-turn
+means, so a short turn weighs as much as a long one. Terminal outputs are
+context, never scored. So compared to GRAPE two things change: the mean is
+taken per turn and then over turns instead of once over all tokens, and the
+context is truncated to the last k turns.
 
-For each assistant turn, compute student likelihood conditioned on:
-
-task/system context
-+ previous k action-observation pairs
-+ preceding teacher tokens within the current turn
-
-(i.e. follwo the paper implementation just adjusted for agentic trajectories).
-Use:
-
-k ∈ {1, 2, 4, 8}
-
-and compare against full-history conditioning as the GRAPE/global-NLL baseline.
-
-k is an agentic adaptation, not prescribed by the original paper.
-
-Do not regenerate or segment teacher turns.
+k ∈ {1, 2, 4, 8}, one proxy per k (`local_nll_k1` ... `local_nll_k8`);
+global_nll is the full-history baseline. k is an agentic adaptation, not
+prescribed by the paper. Teacher turns are not regenerated or re-segmented.
 
 ---
 
