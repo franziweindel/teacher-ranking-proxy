@@ -489,6 +489,15 @@ the three non-Claude teachers stay 2-3x above Table 3. TOR is therefore the
 one proxy here without a validated implementation; the remaining difference
 lies in the paper's action definition or path parsing.
 
+**Reported view.** The README reports one view, `list_strict_prevturn`:
+state-changing actions, the paper's alignment examples, observation in any
+earlier response. It was chosen a priori as the reading closest to the
+paper's text, not by agreement with the ground truth, and is also the plain
+`score` field of `tor.jsonl`. n=1000: tau-b +0.91 on 8B and +0.67 on 32B,
+P(top-1) 0.99 for both, DS > Q35 > GLM > CL; n=200: +0.91, P 0.89. Every
+other `list_*` view except turn1 gives the same order; the `all_*` views and
+turn1 give Q35 > DS > GLM > CL (+0.55 / +0.33).
+
 ---
 
 ## 6.6 Extended EGS proxy
@@ -529,6 +538,12 @@ n=1000, per-teacher mean (%), `list` actions:
 | egs_loop exact_turn1 | 6.0 | 2.9 | 2.7 | 0.4 | DS > GLM > Q35 > CL |
 | egs_loop exact_turn2 | 8.8 | 4.0 | 5.0 | 1.0 | DS > Q35 > GLM > CL |
 | egs_loop exact_turn3 | 9.9 | 4.4 | 5.8 | 1.2 | DS > Q35 > GLM > CL |
+
+**Reported view.** As for TOR, the README reports `list_strict_prevturn`,
+here with the window mirrored forward (verification in any later response).
+n=1000, 8B: egs_post +0.18 (Qwen3.5-Plus first, P 0.00), egs_loop +0.91
+(DeepSeek first, P 0.76); n=200: +0.18 and +0.55 (Qwen3.5-Plus first, P
+0.41).
 
 Verification frequency alone (egs_post) does not follow the ground truth:
 with strict alignment GLM-5 or Qwen3.5-Plus lead, whatever the window. With
