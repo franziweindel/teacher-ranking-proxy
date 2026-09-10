@@ -682,7 +682,7 @@ low-probability step opener the paper has in mind, and DROP and CASL then
 gave +0.18 and -0.18 at n=1000 (8B), the same as GRAPE with Qwen3.5-Plus
 first; those files are kept as `aslec_*__v1_turnfirst.jsonl`.
 
-The CASL regression, concretely: one observation per trajectory over all
+The CASL regression: one observation per trajectory over all
 teachers; per trajectory M = mean log-probability over all step tokens,
 M_first = mean over the first token of each step, M_non = mean over the
 others, F = steps / tokens (the inverse mean step length). Least squares
