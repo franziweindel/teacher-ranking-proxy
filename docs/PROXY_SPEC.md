@@ -671,22 +671,24 @@ teachers, a linear regression of the mean log-probability on the first-token
 ratio, steps divided by tokens, and subtracts the fitted effect of that
 ratio, so it is GRAPE with the step-length trend removed.
 
-Where a step starts is reported in two `score_views`, because a Terminus-2
-turn is a JSON object that opens with the brace and the `analysis` key, so
-its literal first token is near-certain, not the low-probability step opener
-the paper has in mind:
+A step starts at the first token of the analysis text, after the
+`{ "analysis": "` template of the Terminus-2 JSON turn, i.e. the first token
+the teacher chose; the template tokens are left out of every statistic. The
+template is located as a token subsequence in the first 40 tokens of the
+turn (the chat template may put an empty think block before it); a turn
+without it falls back to the turn start. Starting at the turn's literal
+first token, the brace, was tried first: that token is near-certain, not the
+low-probability step opener the paper has in mind, and DROP and CASL then
+gave +0.18 and -0.18 at n=1000 (8B), the same as GRAPE with Qwen3.5-Plus
+first; those files are kept as `aslec_*__v1_turnfirst.jsonl`.
 
-- `turn`: the step starts at the first token of the assistant turn, the
-  brace (paper-literal mapping).
-- `analysis` (primary `score`): the step starts at the first token of the
-  analysis text, after the `{ "analysis": "` template, i.e. the first token
-  the teacher chose; the template tokens are left out of every statistic.
-  The template is located as a token subsequence in the first 40 tokens of
-  the turn (the chat template may put an empty think block before it); a
-  turn without it falls back to the turn start.
-
-n=1000, 8B, `turn` view: DROP +0.18, CASL -0.18, both Qwen3.5-Plus first,
-as GRAPE. `analysis` view: pending recompute.
+The CASL regression, concretely: one observation per trajectory over all
+teachers; per trajectory M = mean log-probability over all step tokens,
+M_first = mean over the first token of each step, M_non = mean over the
+others, F = steps / tokens (the inverse mean step length). Least squares
+M ~ beta1 M_non + beta2 M_first + gamma F + intercept, then score = M -
+gamma F: the part of the mean log-probability that follows from step
+length is removed.
 
 ---
 
