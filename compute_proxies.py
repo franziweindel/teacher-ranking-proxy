@@ -1298,15 +1298,29 @@ def _is_action(event: dict, action_set: str) -> bool:
     return event["kind"] != "observation" and event["word"] != "cd"
 
 
-def _trajectory_grounding_components(rec: dict, horizon: int = 3) -> dict:
+def _after_window(cand: dict, event: dict, window: str) -> bool:
+    """Mirror of _in_window for the verify side: the candidate must be in a
+    later assistant response than the action (same response never counts),
+    and for turnK within the K responses after the action's."""
+    if window == "prevturn":
+        return cand["turn"] > event["turn"]
+    k = int(window[-1])
+    return event["turn"] < cand["turn"] <= event["turn"] + k
+
+
+def _trajectory_grounding_components(rec: dict) -> dict:
+    """TOR (inspect -> act), egs_post (act -> verify) and egs_loop (inspect
+    -> act -> verify) for every predeclared view, in one pass. The window
+    applies backwards for inspect and forwards for verify; an observation or
+    test command in the same response as the action never counts on either
+    side."""
     events = _trajectory_events(rec)
-    actions = [i for i, event in enumerate(events) if event["kind"] == "action"]
-    pre_supported = post_verified = loop_supported = 0
-    tor_n = {v: 0 for v in TOR_VIEWS}
-    tor_sup = {v: 0 for v in TOR_VIEWS}
-    observations = []
     for i, event in enumerate(events):
         event["idx"] = i
+    n = {v: 0 for v in TOR_VIEWS}
+    sup = {c: {v: 0 for v in TOR_VIEWS} for c in ("tor", "egs_post", "egs_loop")}
+    observations = []
+    for i, event in enumerate(events):
         if event["kind"] == "observation":
             observations.append(event)
             continue
@@ -1314,48 +1328,30 @@ def _trajectory_grounding_components(rec: dict, horizon: int = 3) -> dict:
             action_set, align, window = view.split("_")
             if not _is_action(event, action_set):
                 continue
-            tor_n[view] += 1
-            tor_sup[view] += int(bool(event["paths"]) and any(
-                _paths_aligned(obs["paths"], event["paths"],
-                               strict=(align == "strict"),
-                               exact=(align == "exact"))
+            n[view] += 1
+            kw = {"strict": align == "strict", "exact": align == "exact"}
+            pre = bool(event["paths"]) and any(
+                _paths_aligned(obs["paths"], event["paths"], **kw)
                 for obs in observations
-                if obs["paths"] and _in_window(obs, event, window)))
-        if event["kind"] != "action":
-            continue
-        # inspect -> act: an earlier observation on an aligned path (TOR)
-        pre = bool(event["paths"]) and any(
-            _paths_aligned(obs["paths"], event["paths"])
-            for obs in observations if obs["paths"])
-        # act -> verify: within the next `horizon` assistant turns, an
-        # observation on an aligned path or a test/build command
-        later = [candidate for candidate in events[i + 1:]
-                 if candidate["turn"] <= event["turn"] + horizon]
-        post = any(
-            candidate["kind"] == "observation" and
-            candidate["paths"] and event["paths"] and
-            _paths_aligned(candidate["paths"], event["paths"])
-            for candidate in later
-        ) or any(candidate["word"] in _TEST_CMDS for candidate in later)
-        pre_supported += int(pre)
-        post_verified += int(post)
-        loop_supported += int(pre and post)
-    n_actions = len(actions)
+                if obs["paths"] and _in_window(obs, event, window))
+            later = [c for c in events[i + 1:] if _after_window(c, event, window)]
+            post = any(
+                c["kind"] == "observation" and c["paths"] and event["paths"]
+                and _paths_aligned(c["paths"], event["paths"], **kw)
+                for c in later
+            ) or any(c["word"] in _TEST_CMDS for c in later)
+            sup["tor"][view] += int(pre)
+            sup["egs_post"][view] += int(post)
+            sup["egs_loop"][view] += int(pre and post)
+    views = {c: {v: (sup[c][v] / n[v] if n[v] else None) for v in TOR_VIEWS}
+             for c in sup}
     return {
-        "n_actions": n_actions,
-        "n_pre_supported": pre_supported,
-        "n_post_verified": post_verified,
-        "n_loop_supported": loop_supported,
-        "tor_views": {v: (tor_sup[v] / tor_n[v] if tor_n[v] else None)
-                      for v in TOR_VIEWS},
-        "tor_counts": {v: {"n_actions": tor_n[v], "n_supported": tor_sup[v]}
-                       for v in TOR_VIEWS},
+        "views": views,
+        "counts": {v: {"n_actions": n[v],
+                       **{f"n_{c}": sup[c][v] for c in sup}} for v in TOR_VIEWS},
         "n_commands": len(events),
         "n_observations": len(observations),
         "n_turns": (events[-1]["turn"] + 1) if events else 0,
-        "tor": pre_supported / n_actions if n_actions else None,
-        "egs_post": post_verified / n_actions if n_actions else None,
-        "egs_loop": loop_supported / n_actions if n_actions else None,
     }
 
 
@@ -1404,17 +1400,14 @@ def compute_tor(ctx) -> list[dict]:
                              "missing": True, "meta": meta})
                 continue
             components = _trajectory_grounding_components(rec)
-            n_actions = components["n_actions"]
-            n_supported = components["n_pre_supported"]
             rows.append({
                 "proxy": "tor", "teacher": teacher, "task_id": task_id,
-                "score": (n_supported / n_actions) if n_actions else None,
-                "score_views": components["tor_views"],
-                "counts": components["tor_counts"],
+                "score": components["views"]["tor"]["list_strict_prevturn"],
+                "score_views": components["views"]["tor"],
+                "counts": components["counts"],
                 "n_commands": components["n_commands"],
                 "n_observations": components["n_observations"],
                 "n_turns": components["n_turns"],
-                "n_actions": n_actions, "n_supported": n_supported,
                 "meta": meta})
     return rows
 
@@ -1422,9 +1415,9 @@ def compute_tor(ctx) -> list[dict]:
 EGS_DEFINITIONS = {
     "tor": "inspect -> act: fraction of actions preceded by an observation on "
            "an aligned path (Terminal-Lego TOR)",
-    "egs_post": "act -> verify: fraction of actions followed within 3 "
-                "assistant turns by an observation on an aligned path or a "
-                "test/build command",
+    "egs_post": "act -> verify: fraction of actions followed, in a later "
+                "response inside the window, by an observation on an aligned "
+                "path or a test/build command",
     "egs_loop": "inspect -> act -> verify: fraction of actions satisfying "
                 "both conditions",
 }
@@ -1437,7 +1430,10 @@ def compute_egs(ctx, component: str) -> list[dict]:
         "method": "Extended Environment-Grounded Supervision",
         "reference": "Terminal-Lego, arXiv:2606.03461",
         "component": component, "definition": EGS_DEFINITIONS[component],
-        "temporal_window_assistant_turns": 3,
+        "score_views": "<actions>_<align>_<window> as for tor (PROXY_SPEC "
+                       "6.5); the window applies backwards for inspect and "
+                       "forwards for verify, same response never counts",
+        "test_cmds": sorted(_TEST_CMDS),
         "direction": "higher_better", "student_dependent": False,
         "adaptation": "deterministic cwd/path-aligned rules on per-command "
                       "screen segments; components reported separately",
@@ -1457,7 +1453,12 @@ def compute_egs(ctx, component: str) -> list[dict]:
             components = _trajectory_grounding_components(rec)
             rows.append({
                 "proxy": component, "teacher": teacher, "task_id": task_id,
-                "score": components[component], "components": components,
+                "score": components["views"][component]["list_strict_prevturn"],
+                "score_views": components["views"][component],
+                "counts": components["counts"],
+                "n_commands": components["n_commands"],
+                "n_observations": components["n_observations"],
+                "n_turns": components["n_turns"],
                 "meta": meta,
             })
     return rows

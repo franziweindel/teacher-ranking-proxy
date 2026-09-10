@@ -495,27 +495,49 @@ lies in the paper's action definition or path parsing.
 
 TOR covers inspect → act. Terminal-Lego describes environment-grounded
 supervision more broadly as inspect → act → verify → adapt, so two further
-components are computed on the same events, with the same observation list,
-action set, path finding and alignment as TOR (§6.5), reported separately
-and never combined into a weighted score:
+components are computed in the same pass as TOR, with the same observation
+list, action set, path finding, alignment and window options (§6.5), and
+reported separately, never combined into a weighted score:
 
-- **egs_post**, act → verify. An action counts as verified if, within the
-  next three assistant responses, there is either an observation whose path
+- **egs_post**, act → verify. An action counts as verified if a later
+  response inside the window contains either an observation whose path
   aligns with the action's path, or any test or build command (`pytest`,
-  `tox`, `unittest`, `make`, `ctest`), the one rule TOR does not have. Score
-  is verified actions over actions, per trajectory, averaged per teacher.
+  `tox`, `unittest`, `make`, `ctest`), the one rule TOR does not have. The
+  window is the TOR window mirrored forward: `prevturn` = any later
+  response, `turnK` = one of the K responses after the action's. A command in
+  the same response as the action never counts. Score is verified actions
+  over actions, per trajectory, averaged per teacher.
 - **egs_loop**, inspect → act → verify. An action counts if it satisfies both
-  the TOR condition and the egs_post condition. Same aggregation.
+  the TOR condition and the egs_post condition of the same view. Same
+  aggregation.
 
-The pre-action component was dropped as identical to TOR; an adaptation
-component (keyword heuristic on the output after a failed action) was tried,
-showed no signal, and was removed 2026-08-26.
+Both write the same 24 `score_views` as tor. Earlier drafts had two more
+components: a pre-action rate, which is TOR under another name, and an
+adaptation rate (does the command after a failed one differ from it), which
+separated no teachers; both were removed 2026-08-26.
 
-Both components still use the original TOR operationalization (`list`
-actions, `loose` alignment, observations from the same response counted on
-both the inspect and the verify side), not the §6.5 views. n=1000, Qwen3-8B:
-egs_post tau-b -0.18 (GLM-5 first, DeepSeek last), egs_loop +0.55
-(Qwen3.5-Plus first).
+n=1000, per-teacher mean (%), `list` actions:
+
+| component / view | DS | GLM | Q35 | CL | order |
+|---|---|---|---|---|---|
+| egs_post strict_prevturn | 34.5 | 39.4 | 43.1 | 8.2 | Q35 > GLM > DS > CL |
+| egs_post strict_turn1 | 21.4 | 24.6 | 18.9 | 3.9 | GLM > DS > Q35 > CL |
+| egs_post exact_prevturn | 29.6 | 28.8 | 30.1 | 6.5 | Q35 > DS > GLM > CL |
+| egs_post exact_turn1 | 18.2 | 17.6 | 12.2 | 3.1 | DS > GLM > Q35 > CL |
+| egs_post exact_turn2 | 24.5 | 22.5 | 19.6 | 5.1 | DS > GLM > Q35 > CL |
+| egs_post exact_turn3 | 26.6 | 25.6 | 24.2 | 5.9 | DS > GLM > Q35 > CL |
+| egs_loop strict_prevturn | 14.5 | 8.9 | 13.7 | 2.0 | DS > Q35 > GLM > CL |
+| egs_loop strict_turn1 | 7.4 | 4.7 | 5.6 | 0.6 | DS > Q35 > GLM > CL |
+| egs_loop exact_prevturn | 11.0 | 4.9 | 6.3 | 1.2 | DS > Q35 > GLM > CL |
+| egs_loop exact_turn1 | 6.0 | 2.9 | 2.7 | 0.4 | DS > GLM > Q35 > CL |
+| egs_loop exact_turn2 | 8.8 | 4.0 | 5.0 | 1.0 | DS > Q35 > GLM > CL |
+| egs_loop exact_turn3 | 9.9 | 4.4 | 5.8 | 1.2 | DS > Q35 > GLM > CL |
+
+Verification frequency alone (egs_post) does not follow the ground truth:
+with strict alignment GLM-5 or Qwen3.5-Plus lead. With exact alignment and a
+bounded window, egs_post and egs_loop turn1 give the full paper order
+DS > GLM > Q35 > CL, but the GLM-5 / Qwen3.5-Plus gap is under one point, so
+this is not evidence of separation (bootstrap in `ranking_report`).
 
 ---
 
@@ -541,8 +563,6 @@ Originally designed to select instruction-tuning responses that are compatible w
 Here:
 
 Score each existing teacher trajectory using the likelihood of the teacher-generated assistant tokens under the target student.
-
-Do not generate new student responses.
 
 Loss applies only to teacher-generated assistant tokens, not:
 
