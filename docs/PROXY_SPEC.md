@@ -566,14 +566,9 @@ Score each existing teacher trajectory using the likelihood of the teacher-gener
 
 Loss applies only to teacher-generated assistant tokens, not task instruction, system text, terminal observations, environment outputs. 
 
-Normalization as in the paper (length-normalized log-probability, i.e.
-perplexity ranking). In plain terms: add up the log-probabilities of the
+Normalization as in the paper: add up the log-probabilities of the
 response tokens and divide by the number of tokens, i.e. the mean
-log-probability per token. Here the
-response tokens are the teacher's assistant tokens across the whole
-trajectory, conditioned on everything before them (task text, earlier turns,
-terminal output). Implemented as `-sum_nll / assistant_tokens_scored` in
-`compute_global_nll`; the sum and the token count are written with every row.
+log-probability per token. 
 
 ---
 
