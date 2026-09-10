@@ -193,38 +193,15 @@ and bottom right but swap the middle pair.
 | SCRF, cmd_error, tor, egs, traj_length at n=200 vs the 32B GT | not tabulated (student-independent ones are the n=200 8B numbers re-scored against the 32B order; SCRF-32B exists only at n=1000) | | |
 
 
-### TOR: reimplementation vs the paper
+### TOR caveat
 
-The paper's own TOR values (Table 3: DeepSeek 13.4 %, GLM 7.3 %,
-Qwen3.5-Plus 6.5 %, Claude 2.5 %) order the four teachers exactly like the
-32B ground truth, while our original operationalization gave 56 / 49 / 55 /
-33 with GLM and Qwen3.5-Plus swapped. The paper gives the observation list
-and three alignment examples but no action list, and its code is
-unreleased, so `compute_proxies.py` reports TOR in 24 predeclared views,
-`<actions>_<align>_<window>` (PROXY_SPEC 6.5 has the definitions and the
-full table): actions {list = edit/install/run commands, all = every
-non-observation command}, align {loose = original, strict = the paper's
-examples, exact = same path}, window {prevturn = any earlier response,
-turn1/2/3 = the last k responses}. Observations in the same response as the
-action never count (Terminus-2 types a response's commands as one batch and
-only then returns the screen), which is what inflated the original score.
-Per-teacher means (n=1000, %):
-
-| view | DS | GLM | Q35 | CL | order | tau-b 8B / 32B |
-|---|---|---|---|---|---|---|
-| paper Table 3 | 13.4 | 7.3 | 6.5 | 2.5 | DS > GLM > Q35 > CL | +0.91 / +1.00 |
-| list_strict_prevturn (reported) | 32.8 | 20.8 | 30.0 | 6.7 | DS > Q35 > GLM > CL | +0.91 / +0.67 |
-| list_exact_prevturn | 28.4 | 16.4 | 25.7 | 4.9 | DS > Q35 > GLM > CL | +0.91 / +0.67 |
-| list_exact_turn1 | 18.9 | 11.7 | 19.3 | 3.2 | Q35 > DS > GLM > CL | +0.55 / +0.33 |
-| all_strict_prevturn | 27.4 | 22.4 | 30.3 | 6.4 | Q35 > DS > GLM > CL | +0.55 / +0.33 |
-
-Claude lands at the paper's level once same-response observations are
-excluded; tightening align() changes little; widening the action set or
-shortening the window to one turn puts Qwen3.5-Plus first. No view
-reproduces GLM > Qwen3.5-Plus and the other three teachers stay 2-3x above
-the paper, so something in the paper's unreleased action definition or path
-parsing is still different; tor's +0.67 on the 32B ground truth is a
-property of our operationalizations, not established for the paper's metric.
+The paper's own TOR values (Table 3) order the four teachers exactly like
+the 32B ground truth, but its code is unreleased and none of our 24
+predeclared operationalizations reproduces them: Claude comes out at the
+paper's level, the other three teachers 2-3x too high, and GLM-5 never above
+Qwen3.5-Plus. tor's +0.67 on the 32B ground truth is therefore a property of
+our reimplementation, not established for the paper's metric. Definitions,
+per-view numbers and what was tried: PROXY_SPEC 6.5.
 
 ## Additional findings
 
