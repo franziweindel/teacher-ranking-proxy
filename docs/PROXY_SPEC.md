@@ -711,22 +711,21 @@ Reuse implementation in their git repo: https://github.com/UmeanNever/RankSurpri
 Also I believe their current repo has actually been extended to multi-round chat / agent data. The implementation scans the complete chat-formatted sequence and identifies assistant spans only as the tokens to score. So use their exact implementation. 
 
 Implementation (`compute_rsr`; `rsr_cal.py` @59a7c4c reimplemented and
-verified exact on real trajectories, see `upstream_equivalence.py`). Per
-assistant token the student gives its next-token distribution; rank = 1 +
-number of vocabulary entries with a strictly higher logit than the teacher's
-token, clipped at 100 (`rank_clip_r`, the official default); surprisal =
-the token's negative log-probability. Per trajectory, average rank and
-average surprisal over the assistant tokens. Teacher score = mean of the
-per-trajectory average ranks divided by the mean of the per-trajectory
-average surprisals (the official ratio of means), and lower is better: the
-paper reads a low rank as alignment (the teacher's token is among the
-student's top choices) and a high surprisal as learning signal (the
-student would not have produced it), so a low ratio is "surprising but
-compatible". Because `evaluate_ranking.py` ranks higher = better, the sign
-is flipped at scoring time, as for GRACE and SCAS. Only assistant tokens
-are scored; task text and terminal output are context. This is the same
-assistant-span scoring their repo added for multi-round chat and agent
-data in March 2026.
+verified exact on real trajectories, see `upstream_equivalence.py`). For
+every assistant token the student is asked two things: how probable was
+the teacher's token, measured as surprisal, the negative log-probability,
+and where did that token sit in the student's own preference list,
+measured as its rank, 1 if it was the student's top choice, clipped at 100
+(the official `rank_clip_r`). Average both over the trajectory and divide:
+mean rank over mean surprisal. The teacher score is the mean of the
+per-trajectory average ranks over the mean of the per-trajectory average
+surprisals (the official ratio of means). We want a low ratio: surprising
+(high surprisal, the student would not have written it) but compatible
+(low rank, it was among the student's top choices). Because
+`evaluate_ranking.py` ranks higher = better, the sign is flipped at scoring
+time, as for GRACE and SCAS. Only assistant tokens are scored; task text
+and terminal output are context, the same assistant-span scoring their
+repo added for multi-round chat and agent data in March 2026.
 
 Until 2026-09-10 the sign was not flipped, so RSR was evaluated as higher
 = better and reported as Q35 > GLM > DS > CL (+0.18); with the paper's
