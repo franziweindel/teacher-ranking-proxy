@@ -482,19 +482,15 @@ path of an earlier observation.
 | all_exact_turn2 | 20.4 | 15.8 | 22.6 | 4.2 | Q35 > DS > GLM > CL |
 | all_exact_turn3 | 22.2 | 16.6 | 24.2 | 4.5 | Q35 > DS > GLM > CL |
 
-Dropping same-response observations halves the values and brings Claude to
-the paper's level. Tightening alignment lowers everything by a few points
-and changes no order. Widening the action set to all commands puts
-Qwen3.5-Plus first. Shortening the window to one turn puts Qwen3.5-Plus
-level with DeepSeek; two or three turns restore DeepSeek first. In no view
-does GLM-5 rise above Qwen3.5-Plus, and the three non-Claude teachers stay
-2-3x above Table 3, so TOR is the one proxy in this set without a validated
-implementation: the remaining difference must lie in the paper's action
-definition or path parsing, which only its script can settle. Against the
-ground truths, tau-b follows from the predicted order: DS > Q35 > GLM > CL
-(the `list_*` views except turn1) gives +0.91 on 8B and +0.67 on 32B;
-Q35 > DS > GLM > CL (all other views) gives +0.55 / +0.33. Rankings derived
-from tor therefore describe our operationalizations, not the paper's metric.
+Excluding same-response observations brings Claude to the paper's level;
+alignment changes little; the `all` action set and the one-turn window put
+Qwen3.5-Plus first. No view reproduces the paper's GLM-5 > Qwen3.5-Plus, and
+the three non-Claude teachers stay 2-3x above Table 3. TOR is therefore the
+one proxy here without a validated implementation; the remaining difference
+lies in the paper's action definition or path parsing, which only its script
+can settle. tau-b follows from the order: DS > Q35 > GLM > CL (`list_*`
+except turn1) is +0.91 on 8B and +0.67 on 32B; Q35 > DS > GLM > CL (all
+others) is +0.55 / +0.33.
 
 ---
 
