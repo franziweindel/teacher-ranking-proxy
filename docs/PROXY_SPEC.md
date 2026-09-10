@@ -674,28 +674,17 @@ Use the official implementation:
 github.com/wangbing1416/ASLEC
 ```
 
-Map reasoning-step boundaries to Terminus-2 assistant/action turns and evaluate both variants.
-
-Implementation (`compute_aslec`, official `output_drop_score` /
+Implementation (`compute_aslec`; the official `output_drop_score` /
 `output_causal_score` reimplemented and verified identical on real
-trajectories): a step is one assistant turn and one token is skipped per step
-(`skip_tokens=1`, the paper's "first token"; the authors' run script defaults
-to 2). ASLEC-DROP is the mean log-probability over the step tokens except
-the first of every step. ASLEC-CASL fits, over all trajectories of all
-teachers, a linear regression of the mean log-probability on the first-token
-ratio, steps divided by tokens, and subtracts the fitted effect of that
-ratio, so it is GRAPE with the step-length trend removed.
-
-A step starts at the first token of the analysis text, after the
-`{ "analysis": "` template of the Terminus-2 JSON turn, i.e. the first token
-the teacher chose; the template tokens are left out of every statistic. The
-template is located as a token subsequence in the first 40 tokens of the
-turn (the chat template may put an empty think block before it); a turn
-without it falls back to the turn start. Starting at the turn's literal
-first token, the brace, was tried first: that token is near-certain, not the
-low-probability step opener the paper has in mind, and DROP and CASL then
-gave +0.18 and -0.18 at n=1000 (8B), the same as GRAPE with Qwen3.5-Plus
-first; those files are kept as `aslec_*__v1_turnfirst.jsonl`.
+trajectories). A step is one assistant turn, starting at the first token of
+its analysis text, after the `{ "analysis": "` template of the Terminus-2
+JSON turn, so that the skipped "first token" is the first token the teacher
+chose and not the near-certain brace; the template tokens are excluded from
+every statistic. One token is skipped per step (`skip_tokens=1`, the paper's
+definition; the authors' run script defaults to 2). ASLEC-DROP is the mean
+log-probability over the step tokens except the first of every step.
+ASLEC-CASL is the mean over all step tokens with the step-length trend
+regressed out, below.
 
 The CASL regression: one observation per trajectory over all
 teachers; per trajectory M = mean log-probability over all step tokens,
