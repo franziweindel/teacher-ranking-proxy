@@ -397,21 +397,31 @@ before editing it, listing a directory before creating a file inside it,
 reading a script before running it. Table 3 reports TOR per teacher:
 DeepSeek-V3.2 13.4 %, GLM-5 7.3 %, Qwen3.5-Plus 6.5 %, Claude Opus 4.6 2.5 %.
 
-**What the paper leaves open.**
+**What the paper leaves open, and the options implemented.** Each open
+choice is a switch; the first three are the axes of the predeclared views
+(`<actions>_<align>_<window>`), the last two have one implementation.
 
-- Which commands count as actions (only file edits, installs and script runs,
-  or every command that is not an observation).
-- How a command's target path is found from its text.
-- Whether an observation that the agent typed in the same response as the
-  action counts as "before". Terminus-2 sends a whole list of commands per
-  response and only then returns the screen, so the agent had not seen that
-  observation's output when it chose the action.
-- How close two paths must be to count as aligned: identical only, or also
-  a directory versus a file inside it, or merely the same file name in
-  different directories.
-- Whether the teacher score is the mean of per-trajectory ratios (a short
-  trajectory with 2 actions weighs as much as one with 40) or one pooled
-  ratio over all of a teacher's actions.
+- *Which commands count as actions.* `list` = only the state-changing
+  programs (file edits, installs, script runs, or a `>` redirect); `all` =
+  every command that is not an observation and not a bare `cd`.
+- *How close two paths must be to count as aligned.* `exact` = identical
+  path; `strict` = identical, or the observed path is a directory containing
+  the action's path (the paper's three examples); `loose` = strict plus the
+  reverse containment and the same file name in different directories (the
+  original operationalization).
+- *Which earlier turns an observation may come from.* Observations in the
+  same response as the action never count: Terminus-2 types a response's
+  whole command list and only then returns the screen, so the agent had not
+  seen that output when it chose the action. `prevturn` = any earlier
+  response; `turn1`, `turn2`, `turn3` = one of the k responses before the
+  action's. (The original single score also counted same-response
+  observations; it is retained only as `tor__v1_listloose.jsonl`.)
+- *How a command's target path is found.* One implementation, below.
+- *Per-trajectory mean or pooled ratio.* The teacher score is the mean of
+  per-trajectory ratios (a trajectory with 2 actions weighs as much as one
+  with 40). The pooled ratio over all of a teacher's actions was computed
+  once for comparison: it shifts values by a few points and changes no
+  ordering, so it is not a view.
 
 **How commands are classified and paths found.** Commands and their outputs
 come from the same per-command screen segmentation as cmd_error (§6.3), one
@@ -433,81 +443,60 @@ extractable path is never supported but stays in the denominator. TOR is the
 supported fraction per trajectory, averaged over the teacher's trajectories.
 The most recent aligned observation is kept for diagnostics only.
 
-**Predeclared variants.** Because the open choices above turned out to matter,
-`tor.jsonl` carries 48 `score_views`, named `<actions>_<align>_<window>`
-(2 action sets x 3 alignment rules x 8 windows), and `evaluate_ranking.py`
-reports each one. All are computed in the same pass over the same events;
-only the three switches differ.
-
-- actions: `list` = the state-changing program list or a redirect (the
-  original operationalization); `all` = every command that is not an
-  observation and not a bare `cd`.
-- align: `loose` = same path, one path's directory contains the other in
-  either direction, or same basename (original); `strict` = same path, or the
-  observed path is a directory that contains the action's path (only the
-  paper's three examples); `exact` = same path.
-- window: `any` = the observation is anywhere earlier in the command stream,
-  including earlier in the same turn (original); `prevturn` = the observation
-  is in any earlier assistant turn. A turn's commands are typed as one batch,
-  so an observation earlier in the same batch was never seen before the
-  action was chosen; `prevturn` is the reading that matches "inspect before
-  acting". Neither limits how far back the observation may be. Two
-  distance-limited readings, not suggested by the paper, are added to see
-  whether a bound brings the values closer to Table 3: `cmd1`, `cmd2`,
-  `cmd3` = the observation is among the k commands immediately before the
-  action (same turn allowed); `turn1`, `turn2`, `turn3` = the observation is
-  in one of the k assistant turns before the action's turn.
-
-`list_loose_any` is the original single score and reproduces the old
-`tor.jsonl` exactly (kept as `tor__v1_listloose.jsonl`). Per-trajectory
-command, observation and turn counts are written with every row.
+**Predeclared variants.** `tor.jsonl` carries 24 `score_views`
+(2 action sets x 3 alignment rules x 4 windows), all computed in one pass
+over the same events, and `evaluate_ranking.py` reports each one.
+Per-trajectory command, observation and turn counts are written with every
+row.
 
 **Comparison with the paper (n=1000, per-teacher mean, %).**
 
 | view | DS | GLM | Q35 | CL | order |
 |---|---|---|---|---|---|
 | paper Table 3 | 13.4 | 7.3 | 6.5 | 2.5 | DS > GLM > Q35 > CL |
-| list_loose_any | 56.0 | 48.9 | 55.4 | 33.3 | DS > Q35 > GLM > CL |
-| list_strict_any | 55.2 | 48.4 | 54.9 | 31.8 | DS > Q35 > GLM > CL |
-| list_exact_any | 50.5 | 42.7 | 48.8 | 29.0 | DS > Q35 > GLM > CL |
+| original (list, loose, same-response counted; retired) | 56.0 | 48.9 | 55.4 | 33.3 | DS > Q35 > GLM > CL |
 | list_loose_prevturn | 33.7 | 21.2 | 30.6 | 7.1 | DS > Q35 > GLM > CL |
+| list_loose_turn1 | 22.2 | 15.2 | 22.9 | 4.8 | Q35 > DS > GLM > CL |
+| list_loose_turn2 | 28.4 | 18.5 | 27.3 | 6.2 | DS > Q35 > GLM > CL |
+| list_loose_turn3 | 31.3 | 19.6 | 29.1 | 6.6 | DS > Q35 > GLM > CL |
 | list_strict_prevturn | 32.8 | 20.8 | 30.0 | 6.7 | DS > Q35 > GLM > CL |
-| list_exact_prevturn | 28.4 | 16.4 | 25.7 | 4.9 | DS > Q35 > GLM > CL |
-| all_loose_any | 45.6 | 46.4 | 51.7 | 32.1 | Q35 > GLM > DS > CL |
-| all_strict_any | 44.9 | 46.0 | 51.3 | 31.5 | Q35 > GLM > DS > CL |
-| all_exact_any | 40.5 | 39.5 | 44.5 | 28.6 | Q35 > GLM > DS > CL |
-| all_loose_prevturn | 28.1 | 22.8 | 30.9 | 6.6 | Q35 > DS > GLM > CL |
-| all_strict_prevturn | 27.4 | 22.4 | 30.3 | 6.4 | Q35 > DS > GLM > CL |
-| all_exact_prevturn | 23.7 | 17.9 | 25.7 | 4.8 | Q35 > DS > GLM > CL |
-| list_strict_cmd1 | 30.3 | 32.9 | 40.2 | 19.7 | Q35 > GLM > DS > CL |
-| list_strict_cmd2 | 38.7 | 40.6 | 47.4 | 25.4 | Q35 > GLM > DS > CL |
-| list_strict_cmd3 | 42.3 | 42.9 | 50.1 | 28.2 | Q35 > GLM > DS > CL |
 | list_strict_turn1 | 21.1 | 14.7 | 22.3 | 4.5 | Q35 > DS > GLM > CL |
 | list_strict_turn2 | 27.3 | 18.0 | 26.7 | 5.9 | DS > Q35 > GLM > CL |
 | list_strict_turn3 | 30.3 | 19.2 | 28.6 | 6.2 | DS > Q35 > GLM > CL |
-| list_exact_cmd1 | 29.0 | 30.7 | 36.4 | 19.2 | Q35 > GLM > DS > CL |
+| list_exact_prevturn | 28.4 | 16.4 | 25.7 | 4.9 | DS > Q35 > GLM > CL |
 | list_exact_turn1 | 18.9 | 11.7 | 19.3 | 3.2 | Q35 > DS > GLM > CL |
 | list_exact_turn2 | 24.1 | 14.2 | 22.9 | 4.3 | DS > Q35 > GLM > CL |
 | list_exact_turn3 | 26.7 | 15.0 | 24.4 | 4.6 | DS > Q35 > GLM > CL |
+| all_loose_prevturn | 28.1 | 22.8 | 30.9 | 6.6 | Q35 > DS > GLM > CL |
+| all_loose_turn1 | 18.9 | 16.1 | 22.4 | 4.3 | Q35 > DS > GLM > CL |
+| all_loose_turn2 | 23.9 | 20.3 | 27.3 | 5.8 | Q35 > DS > GLM > CL |
+| all_loose_turn3 | 26.1 | 21.5 | 29.2 | 6.1 | Q35 > DS > GLM > CL |
+| all_strict_prevturn | 27.4 | 22.4 | 30.3 | 6.4 | Q35 > DS > GLM > CL |
+| all_strict_turn1 | 18.3 | 15.7 | 21.7 | 4.2 | Q35 > DS > GLM > CL |
+| all_strict_turn2 | 23.3 | 19.9 | 26.6 | 5.6 | Q35 > DS > GLM > CL |
+| all_strict_turn3 | 25.4 | 21.0 | 28.6 | 6.0 | Q35 > DS > GLM > CL |
+| all_exact_prevturn | 23.7 | 17.9 | 25.7 | 4.8 | Q35 > DS > GLM > CL |
+| all_exact_turn1 | 16.2 | 12.7 | 18.7 | 3.1 | Q35 > DS > GLM > CL |
+| all_exact_turn2 | 20.4 | 15.8 | 22.6 | 4.2 | Q35 > DS > GLM > CL |
+| all_exact_turn3 | 22.2 | 16.6 | 24.2 | 4.5 | Q35 > DS > GLM > CL |
 
-The window is the main driver (previous-turn halves the values and brings
-Claude to the paper's level); alignment tightening changes little; widening
-the action set to all commands makes Qwen3.5-Plus first. Bounding the
-distance does not help: a k-command window keeps same-batch pairs and drops
-the cross-turn ones, which is the wrong subset (Qwen3.5-Plus and GLM-5 move
-above DeepSeek and the values rise with k); a k-turn window lowers the values
-further (turn1 exact: 18.9 / 11.7 / 19.3 / 3.2) but puts Qwen3.5-Plus level
-with or above DeepSeek. No variant reaches the paper's magnitudes for the
-three non-Claude teachers or its GLM-5 > Qwen3.5-Plus order, so TOR is the
-one proxy in this set without a validated implementation: the remaining
-difference must lie in the paper's action definition or path parsing, which
-only its script can settle. Against the ground truths, tau-b follows from the
-predicted order: DS > Q35 > GLM > CL (the `list_*` views with window any,
-prevturn, turn2, turn3) gives +0.91 on 8B and +0.67 on 32B; Q35 > DS > GLM >
-CL gives +0.55 / +0.33; Q35 > GLM > DS > CL gives +0.18 / 0.00. Rankings
-derived from tor therefore describe our operationalizations, not the paper's
-metric.
+Dropping same-response observations halves the values and brings Claude to
+the paper's level. Tightening alignment lowers everything by a few points
+and changes no order. Widening the action set to all commands puts
+Qwen3.5-Plus first. Shortening the window to one turn puts Qwen3.5-Plus
+level with DeepSeek; two or three turns restore DeepSeek first. In no view
+does GLM-5 rise above Qwen3.5-Plus, and the three non-Claude teachers stay
+2-3x above Table 3, so TOR is the one proxy in this set without a validated
+implementation: the remaining difference must lie in the paper's action
+definition or path parsing, which only its script can settle. Against the
+ground truths, tau-b follows from the predicted order: DS > Q35 > GLM > CL
+(the `list_*` views except turn1) gives +0.91 on 8B and +0.67 on 32B;
+Q35 > DS > GLM > CL (all other views) gives +0.55 / +0.33. Rankings derived
+from tor therefore describe our operationalizations, not the paper's metric.
 
+Do **not** add the paper's separate three-assistant-turn look-ahead window
+to TOR unless upstream implementation confirms that it is part of the metric
+(it is used by egs_post, §6.6, not here).
 
 ---
 

@@ -1272,30 +1272,23 @@ def _error_output(text: str) -> bool:
 # redirect (original); "all" = every command that is not an observation and
 # not a bare `cd` (pure navigation, no state change). Alignment: see
 # _paths_aligned (loose = original, strict = the paper's examples only).
-# Window: "any" = the observation is anywhere earlier in the command stream,
-# including earlier in the same Terminus-2 turn (the original; but a turn's
-# commands are typed as one batch, so the agent has NOT seen that output when
-# it decides the action); "prevturn" = the observation is in an earlier
-# assistant turn, i.e. its output was in the agent's context.
-# Distance-limited windows (not in the paper, exploratory): "cmdK" = the
-# observation is one of the K commands immediately before the action in the
-# command stream (same turn allowed); "turnK" = the observation is in one of
-# the K assistant turns before the action's turn (same turn excluded).
-TOR_WINDOWS = ("any", "prevturn", "cmd1", "cmd2", "cmd3",
-               "turn1", "turn2", "turn3")
+# Window: which earlier assistant turns an observation may come from. A
+# Terminus-2 response types all its commands as one batch and only then gets
+# the screen back, so an observation in the same response as the action was
+# never seen before the action was chosen and never counts. "prevturn" = any
+# earlier turn; "turnK" = one of the K turns before the action's turn. (The
+# original single score also counted same-response observations; it is kept
+# only as the tor__v1_listloose.jsonl files, see PROXY_SPEC 6.5.)
+TOR_WINDOWS = ("prevturn", "turn1", "turn2", "turn3")
 TOR_VIEWS = tuple(f"{a}_{al}_{w}" for a in ("list", "all")
                   for al in ("loose", "strict", "exact")
                   for w in TOR_WINDOWS)
 
 
 def _in_window(obs: dict, event: dict, window: str) -> bool:
-    if window == "any":
-        return True
     if window == "prevturn":
         return obs["turn"] < event["turn"]
     k = int(window[-1])
-    if window.startswith("cmd"):
-        return event["idx"] - k <= obs["idx"] < event["idx"]
     return event["turn"] - k <= obs["turn"] < event["turn"]
 
 
@@ -1387,17 +1380,13 @@ def compute_tor(ctx) -> list[dict]:
                                     "contains the action path (the paper's "
                                     "three examples only)",
                           "exact": "same path only"},
-                "window": {"any": "observation anywhere earlier in the "
-                                  "command stream, same turn allowed "
-                                  "(original)",
-                           "prevturn": "observation in an earlier assistant "
-                                       "turn, so its output was in context",
-                           "cmdK": "observation among the K commands "
-                                   "immediately before the action (same "
-                                   "turn allowed), K=1,2,3",
+                "window": {"prevturn": "observation in any earlier assistant "
+                                       "turn (its output was in context)",
                            "turnK": "observation in one of the K assistant "
                                     "turns before the action's turn, K=1,2,3"},
-                "original": "list_loose_any"},
+                "note": "same-response observations never count; the "
+                        "original score that counted them is kept only as "
+                        "tor__v1_listloose.jsonl"},
             "adaptation": "cwd-aware normalized paths; pwd added; action set "
                           "and align() predeclared in four views because the "
                           "paper lists no action commands and upstream code "

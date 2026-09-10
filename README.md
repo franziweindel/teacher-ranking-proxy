@@ -145,32 +145,29 @@ DeepSeek 13.4%, GLM 7.3%, Qwen3.5-Plus 6.5%, Claude 2.5%) do order the four
 teachers exactly like the 32B ground truth, while our original
 operationalization gives 56 / 49 / 55 / 33 with GLM and Qwen3.5-Plus swapped.
 The paper gives the observation list and three alignment examples but no
-action list, and its code is unreleased, so `compute_proxies.py` now reports
-TOR in twelve predeclared views: actions {list = edit/install/run commands,
-all = every non-observation command}, align {loose = original, strict = same
-path or observed directory contains the target, exact = same path}, window
-{any = observation anywhere earlier, same turn allowed, prevturn = observation
-in an earlier assistant turn, so its output was actually in context}.
-Per-teacher means (n=1000, DS / GLM / Q35 / CL, %):
+action list, and its code is unreleased, so `compute_proxies.py` reports TOR
+in 24 predeclared views, `<actions>_<align>_<window>` (PROXY_SPEC 6.5 has
+the definitions and the full table): actions {list = edit/install/run
+commands, all = every non-observation command}, align {loose = original,
+strict = the paper's examples, exact = same path}, window {prevturn = any
+earlier response, turn1/2/3 = the last k responses}. Observations in the same
+response as the action never count (Terminus-2 types a response's commands
+as one batch and only then returns the screen), which is what inflated the
+original score to 56 / 49 / 55 / 33. Per-teacher means (n=1000, %):
 
 | view | DS | GLM | Q35 | CL | order | tau-b 8B / 32B |
 |---|---|---|---|---|---|---|
 | paper Table 3 | 13.4 | 7.3 | 6.5 | 2.5 | DS > GLM > Q35 > CL | +0.91 / +1.00 |
-| list_loose_any (original) | 56.0 | 48.9 | 55.4 | 33.3 | DS > Q35 > GLM > CL | +0.91 / +0.67 |
 | list_strict_prevturn | 32.8 | 20.8 | 30.0 | 6.7 | DS > Q35 > GLM > CL | +0.91 / +0.67 |
 | list_exact_prevturn | 28.4 | 16.4 | 25.7 | 4.9 | DS > Q35 > GLM > CL | +0.91 / +0.67 |
+| list_exact_turn1 | 18.9 | 11.7 | 19.3 | 3.2 | Q35 > DS > GLM > CL | +0.55 / +0.33 |
 | all_strict_prevturn | 27.4 | 22.4 | 30.3 | 6.4 | Q35 > DS > GLM > CL | +0.55 / +0.33 |
-| all_exact_prevturn | 23.7 | 17.9 | 25.7 | 4.8 | Q35 > DS > GLM > CL | +0.55 / +0.33 |
 
-The same-turn window is the main inflator (a Terminus-2 turn types several
-commands as one batch, so an observation earlier in the same batch was never
-seen before the action); requiring a previous turn halves the values and puts
-Claude near the paper's 2.5%. Tightening align() changes little. Widening the
-action set to all commands makes it worse (Qwen3.5-Plus first), and so does
-bounding the distance to the last k commands or k turns (k=1,2,3; 48 views in
-total, table in PROXY_SPEC 6.5). No view
-reproduces GLM > Qwen3.5-Plus, and all remain 2-4x above the paper's values,
-so something in the paper's unreleased action definition or path parsing is
+Claude lands at the paper's level once same-response observations are
+excluded; tightening align() changes little; widening the action set or
+shortening the window to one turn puts Qwen3.5-Plus first. No view
+reproduces GLM > Qwen3.5-Plus and the other three teachers stay 2-3x above
+the paper, so something in the paper's unreleased action definition or path parsing is
 still different; tor's +0.67 on the 32B ground truth is therefore a property
 of our operationalizations, not established for the paper's metric. So on the one benchmark that can separate them, the
 recovery-aware proxies beat pure length. SCRF does not beat cmd_error here (both
@@ -255,7 +252,7 @@ Supporting scripts:
 
 ## To dos
 
-- TOR still 2-4x the paper's Table 3 values and GLM/Qwen3.5-Plus swapped in every one of the twelve views (see the 32B section). Remaining candidates: per-turn instead of per-command counting, a narrower "state-changing" action definition (file edits only), or stricter path parsing (only explicit file operands). Ask the authors for the TOR script; teacher-only, seconds to rerun. The old single-score file is kept as `proxy_scores/*/tor__v1_listloose.jsonl`.
+- TOR still 2-3x the paper's Table 3 values and GLM/Qwen3.5-Plus swapped in every one of the 24 views (see the 32B section). Remaining candidates: per-turn instead of per-command counting, a narrower "state-changing" action definition (file edits only), or stricter path parsing (only explicit file operands). Ask the authors for the TOR script; teacher-only, seconds to rerun. The old single-score file is kept as `proxy_scores/*/tor__v1_listloose.jsonl`.
 - Rerun 8B SCRF with q_S built from the 1000-trace student run (clear `proxy_scores/Qwen__Qwen3-8B/scrf@gpt-oss-120b.jsonl` first; the 200-trace result is kept as `scrf@gpt-oss-120b__qS200.jsonl`) to check how many student traces q_S needs.
 - Finish the 32B likelihood family: fix the device mismatch in `_trajectory_scas_components` (index tensor must live on the model's device when the 32B student is sharded over 2 GPUs) and rerun SCAS and GRACE; the n=1000 run of local_nll_k8, aslec, rsr, scas for 32B was in flight when the Capella storage outage of 2026-09-09 hit.
 - Third judge (GLM-4.6-FP8) for 3-way agreement on cmd_error/SCRF labels: needs two nodes (337 GB weights); the alpha 8x40 GB attempt OOMs and the Capella 2-node Ray/vLLM bringup did not become healthy within 40 min.
