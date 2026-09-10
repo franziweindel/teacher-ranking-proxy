@@ -566,7 +566,13 @@ Score each existing teacher trajectory using the likelihood of the teacher-gener
 
 Loss applies only to teacher-generated assistant tokens, not task instruction, system text, terminal observations, environment outputs. 
 
-Normalize as prescribed by the published method.
+Normalization as in the paper: GRAPE ranks responses by the conditional
+log-probability under the base model "normalized by response length", which
+it notes is the same as ranking by perplexity, exp(-(1/N) sum_t log
+P(x_t | x_<t)). So the score is the mean log-probability per scored token,
+not the sum, so that long trajectories are not penalized for having more
+tokens. Implemented as `-sum_nll / assistant_tokens_scored` in
+`compute_global_nll`; the sum and the token count are written with every row.
 
 ---
 
