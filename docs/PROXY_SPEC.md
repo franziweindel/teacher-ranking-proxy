@@ -707,26 +707,18 @@ Observation that effective trajectories typically balance learning signal streng
 
 Propose RSR  defined as the ratio of a trajectory’s average tokenwise rank to its average negative log-likelihood. 
 
-Reuse implementation in their git repo: https://github.com/UmeanNever/RankSurprisalRatio.
-Also I believe their current repo has actually been extended to multi-round chat / agent data. The implementation scans the complete chat-formatted sequence and identifies assistant spans only as the tokens to score. So use their exact implementation. 
-
-Implementation (`compute_rsr`; `rsr_cal.py` @59a7c4c reimplemented and
-verified exact on real trajectories, see `upstream_equivalence.py`). For
-every assistant token the student is asked two things: how probable was
-the teacher's token, measured as surprisal, the negative log-probability,
-and where did that token sit in the student's own preference list,
-measured as its rank, 1 if it was the student's top choice, clipped at 100
-(the official `rank_clip_r`). Average both over the trajectory and divide:
-mean rank over mean surprisal. The teacher score is the mean of the
-per-trajectory average ranks over the mean of the per-trajectory average
-surprisals (the official ratio of means). We want a low ratio: surprising
-(high surprisal, the student would not have written it) but compatible
-(low rank, it was among the student's top choices). Because
-`evaluate_ranking.py` ranks higher = better, the sign is flipped at scoring
-time, as for GRACE and SCAS. Only assistant tokens are scored; task text
-and terminal output are context, the same assistant-span scoring their
-repo added for multi-round chat and agent data in March 2026.
-
+Implementation: their `rsr_cal.py` (github.com/UmeanNever/RankSurprisalRatio
+@59a7c4c, which scores assistant spans only, so it already covers
+multi-round chat and agent data) reimplemented in `compute_rsr` and verified
+exact on real trajectories. For every assistant token the student is asked
+two things: how probable was the teacher's token, measured as surprisal, the
+negative log-probability, and where did that token sit in the student's own
+preference list, measured as its rank, 1 if it was the student's top choice,
+clipped at 100. Average both over the trajectory and divide: mean rank over
+mean surprisal. Teacher score = mean of the per-trajectory average ranks
+over the mean of their average surprisals. We want a low ratio: surprising
+but compatible. The sign is flipped at scoring time because
+`evaluate_ranking.py` ranks higher = better (as for GRACE and SCAS).
 
 ---
 
