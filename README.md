@@ -205,14 +205,23 @@ per-view numbers and what was tried: PROXY_SPEC 6.5.
 
 ## Additional findings
 
-- **Length is a confound.** traj_length reaches the 8B ceiling (+0.91)
-  simply because DeepSeek writes the longest trajectories; on the tie-free
-  32B ranking it swaps GLM-5 and Qwen3.5-Plus (+0.67) while SCRF and
-  cmd_error, which are rates, get them right (+1.00).
+- **Trajectory length works well, and that may be a flaw of the ground
+  truth.** traj_length reaches the 8B ceiling (+0.91) and is second-best on
+  the 32B ranking (+0.67, only the GLM-5 / Qwen3.5-Plus pair swapped;
+  SCRF and cmd_error, which are rates, get it right at +1.00). But the
+  paper's SFT runs compare teachers at an equal number of trajectories, not
+  an equal number of training tokens, so DeepSeek, whose trajectories are
+  the longest, also trained its students on the most tokens. Part of its
+  ground-truth lead may be compute rather than teaching quality, which is
+  why a FLOPs-controlled ground truth is on the to-do list.
 - **Same-family bias.** Every student-likelihood proxy except RSR (GRAPE,
-  LALP, ASLEC, SCAS, GRACE) puts Qwen3.5-Plus first for both Qwen students.
-  RSR (lower = better) is the mirror image: Claude first, Qwen3.5-Plus last.
-- **SCRF works, stabilizes with n, and is judge-dependent.** All six views
+  LALP, ASLEC, SCAS, GRACE) puts Qwen3.5-Plus first for both Qwen students:
+  its trajectories are the most probable under a Qwen student. RSR rewards
+  the opposite, tokens the student finds surprising, so it ranks the
+  teachers roughly in reverse: Claude, whose trajectories are the least
+  probable under the student, first and Qwen3.5-Plus last. Neither order
+  matches the ground truth.
+- **SCRF works, stabilizes with n, but is judge-dependent.** All six views
   reproduce the 8B ranking and recover the full 32B ranking, matching but not
   beating cmd_error. At n=200 it is right but not bootstrap-stable (P 0.5-0.7),
   at n=1000 it is (P 0.90-1.00). Only with the gpt-oss-120b judge: Qwen3-32B
