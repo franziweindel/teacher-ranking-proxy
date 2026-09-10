@@ -568,8 +568,6 @@ Loss applies only to teacher-generated assistant tokens, not task instruction, s
 
 Normalize as prescribed by the published method.
 
-Retain one score per `(task, teacher, student)`.
-
 ---
 
 ## 7.2 CAR
