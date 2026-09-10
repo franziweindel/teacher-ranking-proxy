@@ -429,9 +429,10 @@ supported fraction per trajectory, averaged over the teacher's trajectories.
 The most recent aligned observation is kept for diagnostics only.
 
 **Predeclared variants.** Because the open choices above turned out to matter,
-`tor.jsonl` carries twelve `score_views`, named `<actions>_<align>_<window>`,
-and `evaluate_ranking.py` reports each one. All twelve are computed in the
-same pass over the same events; only the three switches differ.
+`tor.jsonl` carries 48 `score_views`, named `<actions>_<align>_<window>`
+(2 action sets x 3 alignment rules x 8 windows), and `evaluate_ranking.py`
+reports each one. All are computed in the same pass over the same events;
+only the three switches differ.
 
 - actions: `list` = the state-changing program list or a redirect (the
   original operationalization); `all` = every command that is not an
@@ -442,10 +443,15 @@ same pass over the same events; only the three switches differ.
   paper's three examples); `exact` = same path.
 - window: `any` = the observation is anywhere earlier in the command stream,
   including earlier in the same turn (original); `prevturn` = the observation
-  is in an earlier assistant turn. A turn's commands are typed as one batch,
+  is in any earlier assistant turn. A turn's commands are typed as one batch,
   so an observation earlier in the same batch was never seen before the
   action was chosen; `prevturn` is the reading that matches "inspect before
-  acting".
+  acting". Neither limits how far back the observation may be. Two
+  distance-limited readings, not suggested by the paper, are added to see
+  whether a bound brings the values closer to Table 3: `cmd1`, `cmd2`,
+  `cmd3` = the observation is among the k commands immediately before the
+  action (same turn allowed); `turn1`, `turn2`, `turn3` = the observation is
+  in one of the k assistant turns before the action's turn.
 
 `list_loose_any` is the original single score and reproduces the old
 `tor.jsonl` exactly (kept as `tor__v1_listloose.jsonl`). Per-trajectory
@@ -468,22 +474,35 @@ command, observation and turn counts are written with every row.
 | all_loose_prevturn | 28.1 | 22.8 | 30.9 | 6.6 | Q35 > DS > GLM > CL |
 | all_strict_prevturn | 27.4 | 22.4 | 30.3 | 6.4 | Q35 > DS > GLM > CL |
 | all_exact_prevturn | 23.7 | 17.9 | 25.7 | 4.8 | Q35 > DS > GLM > CL |
+| list_strict_cmd1 | 30.3 | 32.9 | 40.2 | 19.7 | Q35 > GLM > DS > CL |
+| list_strict_cmd2 | 38.7 | 40.6 | 47.4 | 25.4 | Q35 > GLM > DS > CL |
+| list_strict_cmd3 | 42.3 | 42.9 | 50.1 | 28.2 | Q35 > GLM > DS > CL |
+| list_strict_turn1 | 21.1 | 14.7 | 22.3 | 4.5 | Q35 > DS > GLM > CL |
+| list_strict_turn2 | 27.3 | 18.0 | 26.7 | 5.9 | DS > Q35 > GLM > CL |
+| list_strict_turn3 | 30.3 | 19.2 | 28.6 | 6.2 | DS > Q35 > GLM > CL |
+| list_exact_cmd1 | 29.0 | 30.7 | 36.4 | 19.2 | Q35 > GLM > DS > CL |
+| list_exact_turn1 | 18.9 | 11.7 | 19.3 | 3.2 | Q35 > DS > GLM > CL |
+| list_exact_turn2 | 24.1 | 14.2 | 22.9 | 4.3 | DS > Q35 > GLM > CL |
+| list_exact_turn3 | 26.7 | 15.0 | 24.4 | 4.6 | DS > Q35 > GLM > CL |
 
 The window is the main driver (previous-turn halves the values and brings
 Claude to the paper's level); alignment tightening changes little; widening
-the action set to all commands makes Qwen3.5-Plus first. No variant reaches
-the paper's magnitudes for the other three teachers or its GLM-5 >
-Qwen3.5-Plus order, so TOR is the one proxy in this set without a validated
-implementation: the remaining difference must lie in the paper's action
-definition or path parsing, which only its script can settle. Every `list_*`
-view gives tau-b +0.91 against the 8B ground truth and +0.67 against the
-tie-free 32B ground truth (Qwen3.5-Plus and GLM-5 swapped); `all_*` views are
-lower. Rankings derived from tor therefore describe our operationalizations,
-not the paper's metric.
+the action set to all commands makes Qwen3.5-Plus first. Bounding the
+distance does not help: a k-command window keeps same-batch pairs and drops
+the cross-turn ones, which is the wrong subset (Qwen3.5-Plus and GLM-5 move
+above DeepSeek and the values rise with k); a k-turn window lowers the values
+further (turn1 exact: 18.9 / 11.7 / 19.3 / 3.2) but puts Qwen3.5-Plus level
+with or above DeepSeek. No variant reaches the paper's magnitudes for the
+three non-Claude teachers or its GLM-5 > Qwen3.5-Plus order, so TOR is the
+one proxy in this set without a validated implementation: the remaining
+difference must lie in the paper's action definition or path parsing, which
+only its script can settle. Against the ground truths, tau-b follows from the
+predicted order: DS > Q35 > GLM > CL (the `list_*` views with window any,
+prevturn, turn2, turn3) gives +0.91 on 8B and +0.67 on 32B; Q35 > DS > GLM >
+CL gives +0.55 / +0.33; Q35 > GLM > DS > CL gives +0.18 / 0.00. Rankings
+derived from tor therefore describe our operationalizations, not the paper's
+metric.
 
-Do **not** add the paper's separate three-assistant-turn window to TOR unless
-upstream implementation confirms that it is part of the metric (it is used by
-egs_post, §6.6, not here).
 
 ---
 

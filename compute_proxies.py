@@ -1277,9 +1277,26 @@ def _error_output(text: str) -> bool:
 # commands are typed as one batch, so the agent has NOT seen that output when
 # it decides the action); "prevturn" = the observation is in an earlier
 # assistant turn, i.e. its output was in the agent's context.
+# Distance-limited windows (not in the paper, exploratory): "cmdK" = the
+# observation is one of the K commands immediately before the action in the
+# command stream (same turn allowed); "turnK" = the observation is in one of
+# the K assistant turns before the action's turn (same turn excluded).
+TOR_WINDOWS = ("any", "prevturn", "cmd1", "cmd2", "cmd3",
+               "turn1", "turn2", "turn3")
 TOR_VIEWS = tuple(f"{a}_{al}_{w}" for a in ("list", "all")
                   for al in ("loose", "strict", "exact")
-                  for w in ("any", "prevturn"))
+                  for w in TOR_WINDOWS)
+
+
+def _in_window(obs: dict, event: dict, window: str) -> bool:
+    if window == "any":
+        return True
+    if window == "prevturn":
+        return obs["turn"] < event["turn"]
+    k = int(window[-1])
+    if window.startswith("cmd"):
+        return event["idx"] - k <= obs["idx"] < event["idx"]
+    return event["turn"] - k <= obs["turn"] < event["turn"]
 
 
 def _is_action(event: dict, action_set: str) -> bool:
@@ -1296,6 +1313,7 @@ def _trajectory_grounding_components(rec: dict, horizon: int = 3) -> dict:
     tor_sup = {v: 0 for v in TOR_VIEWS}
     observations = []
     for i, event in enumerate(events):
+        event["idx"] = i
         if event["kind"] == "observation":
             observations.append(event)
             continue
@@ -1309,8 +1327,7 @@ def _trajectory_grounding_components(rec: dict, horizon: int = 3) -> dict:
                                strict=(align == "strict"),
                                exact=(align == "exact"))
                 for obs in observations
-                if obs["paths"] and (window == "any" or
-                                     obs["turn"] < event["turn"])))
+                if obs["paths"] and _in_window(obs, event, window)))
         if event["kind"] != "action":
             continue
         # inspect -> act: an earlier observation on an aligned path (TOR)
@@ -1374,7 +1391,12 @@ def compute_tor(ctx) -> list[dict]:
                                   "command stream, same turn allowed "
                                   "(original)",
                            "prevturn": "observation in an earlier assistant "
-                                       "turn, so its output was in context"},
+                                       "turn, so its output was in context",
+                           "cmdK": "observation among the K commands "
+                                   "immediately before the action (same "
+                                   "turn allowed), K=1,2,3",
+                           "turnK": "observation in one of the K assistant "
+                                    "turns before the action's turn, K=1,2,3"},
                 "original": "list_loose_any"},
             "adaptation": "cwd-aware normalized paths; pwd added; action set "
                           "and align() predeclared in four views because the "

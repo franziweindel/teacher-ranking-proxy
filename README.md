@@ -166,7 +166,9 @@ The same-turn window is the main inflator (a Terminus-2 turn types several
 commands as one batch, so an observation earlier in the same batch was never
 seen before the action); requiring a previous turn halves the values and puts
 Claude near the paper's 2.5%. Tightening align() changes little. Widening the
-action set to all commands makes it worse (Qwen3.5-Plus first). No view
+action set to all commands makes it worse (Qwen3.5-Plus first), and so does
+bounding the distance to the last k commands or k turns (k=1,2,3; 48 views in
+total, table in PROXY_SPEC 6.5). No view
 reproduces GLM > Qwen3.5-Plus, and all remain 2-4x above the paper's values,
 so something in the paper's unreleased action definition or path parsing is
 still different; tor's +0.67 on the 32B ground truth is therefore a property
