@@ -385,54 +385,105 @@ behavior.
 
 ### TOR implementation
 
-Use upstream code if an exact implementation becomes available.
+No upstream code exists (the paper says "available upon acceptance"), so this
+is our reimplementation from the paper text, with every choice the paper does
+not make written down here. Code: `_trajectory_events`, `_paths_aligned`,
+`_trajectory_grounding_components` and `compute_tor` in `compute_proxies.py`.
 
-Otherwise:
+**What the paper fixes.** The observation set (`cat ls find grep head wc diff
+stat`), the formula (supported actions / actions), that the observation must
+come before the action, and three examples of alignment: inspecting a file
+before editing it, listing a directory before creating a file inside it,
+reading a script before running it. Table 3 reports TOR per teacher:
+DeepSeek-V3.2 13.4 %, GLM-5 7.3 %, Qwen3.5-Plus 6.5 %, Claude Opus 4.6 2.5 %.
 
-1. parse the trajectory command-by-command;
-2. classify each command as observation, action, or other using the paper's taxonomy;
-3. track the current working directory;
-4. normalize relative/absolute paths;
-5. extract a target path only when the command genuinely has one;
-6. for each action, search earlier observations for a path-aligned observation;
-7. mark the action as supported if at least one exists.
+**What the paper leaves open.** Which commands count as actions; how a
+command's target path is found; whether "before" includes earlier in the
+same turn; whether alignment is exact or allows containment or name matches;
+per-trajectory mean or pooled ratio.
 
-Examples of alignment:
+**How the trajectory is read.** Every Terminus-2 assistant turn is a JSON
+object with a list of `commands`, each typed into one terminal. We split the
+turn into one event per executed command using the same per-command screen
+segments as cmd_error, so each event carries the command line, its own output,
+and the shell's working directory at that moment (taken from the echoed prompt
+line, otherwise from the task prompt plus `cd` tracking). Commands the screen
+did not show are dropped. The first word of the line, after stripping `sudo`,
+`env`, `timeout`, `VAR=` prefixes and directory prefixes, is the program name.
+A command is an *observation* if the program is in the paper's list (plus
+`pwd`, which we need for cwd tracking); it is an *action* if the program is in
+our list of state-changing programs (`sed tee cp mv rm mkdir touch chmod tar
+pip apt npm make gcc python node bash git patch ...`) or the line contains a
+`>` redirect; everything else is *other*. Target paths are taken from the
+command's tokens: anything containing `/`, `.` or `..`, a file suffix, a
+redirect target, or a positional operand of a program that takes paths;
+relative paths are made absolute with the current cwd; tokens containing
+shell expansions (`$`, backticks, parentheses) are discarded rather than
+guessed.
 
-```text
-cat src/foo.py
-→ edit src/foo.py
-✓
+**How TOR is scored.** Walking the events in order, every observation with a
+path is remembered. For each action, TOR counts it as supported if any
+remembered observation aligns with one of its paths; an action with no
+extractable path is never supported but stays in the denominator. TOR is the
+supported fraction per trajectory, averaged over the teacher's trajectories.
+The most recent aligned observation is kept for diagnostics only.
 
-ls src/
-→ create src/foo.py
-✓
+**Predeclared variants.** Because the open choices above turned out to matter,
+`tor.jsonl` carries twelve `score_views`, named `<actions>_<align>_<window>`,
+and `evaluate_ranking.py` reports each one. All twelve are computed in the
+same pass over the same events; only the three switches differ.
 
-cat scripts/run.sh
-→ bash scripts/run.sh
-✓
+- actions: `list` = the state-changing program list or a redirect (the
+  original operationalization); `all` = every command that is not an
+  observation and not a bare `cd`.
+- align: `loose` = same path, one path's directory contains the other in
+  either direction, or same basename (original); `strict` = same path, or the
+  observed path is a directory that contains the action's path (only the
+  paper's three examples); `exact` = same path.
+- window: `any` = the observation is anywhere earlier in the command stream,
+  including earlier in the same turn (original); `prevturn` = the observation
+  is in an earlier assistant turn. A turn's commands are typed as one batch,
+  so an observation earlier in the same batch was never seen before the
+  action was chosen; `prevturn` is the reading that matches "inspect before
+  acting".
 
-cat README.md
-→ edit src/foo.py
-✗
-```
+`list_loose_any` is the original single score and reproduces the old
+`tor.jsonl` exactly (kept as `tor__v1_listloose.jsonl`). Per-trajectory
+command, observation and turn counts are written with every row.
 
-For diagnostics retain the most recent aligned observation, but TOR itself is binary per action.
+**Comparison with the paper (n=1000, per-teacher mean, %).**
 
-Do **not** add the paper's separate three-assistant-turn window to TOR unless upstream implementation confirms that it is part of the metric.
+| view | DS | GLM | Q35 | CL | order |
+|---|---|---|---|---|---|
+| paper Table 3 | 13.4 | 7.3 | 6.5 | 2.5 | DS > GLM > Q35 > CL |
+| list_loose_any | 56.0 | 48.9 | 55.4 | 33.3 | DS > Q35 > GLM > CL |
+| list_strict_any | 55.2 | 48.4 | 54.9 | 31.8 | DS > Q35 > GLM > CL |
+| list_exact_any | 50.5 | 42.7 | 48.8 | 29.0 | DS > Q35 > GLM > CL |
+| list_loose_prevturn | 33.7 | 21.2 | 30.6 | 7.1 | DS > Q35 > GLM > CL |
+| list_strict_prevturn | 32.8 | 20.8 | 30.0 | 6.7 | DS > Q35 > GLM > CL |
+| list_exact_prevturn | 28.4 | 16.4 | 25.7 | 4.9 | DS > Q35 > GLM > CL |
+| all_loose_any | 45.6 | 46.4 | 51.7 | 32.1 | Q35 > GLM > DS > CL |
+| all_strict_any | 44.9 | 46.0 | 51.3 | 31.5 | Q35 > GLM > DS > CL |
+| all_exact_any | 40.5 | 39.5 | 44.5 | 28.6 | Q35 > GLM > DS > CL |
+| all_loose_prevturn | 28.1 | 22.8 | 30.9 | 6.6 | Q35 > DS > GLM > CL |
+| all_strict_prevturn | 27.4 | 22.4 | 30.3 | 6.4 | Q35 > DS > GLM > CL |
+| all_exact_prevturn | 23.7 | 17.9 | 25.7 | 4.8 | Q35 > DS > GLM > CL |
 
-Document:
+The window is the main driver (previous-turn halves the values and brings
+Claude to the paper's level); alignment tightening changes little; widening
+the action set to all commands makes Qwen3.5-Plus first. No variant reaches
+the paper's magnitudes for the other three teachers or its GLM-5 >
+Qwen3.5-Plus order, so TOR is the one proxy in this set without a validated
+implementation: the remaining difference must lie in the paper's action
+definition or path parsing, which only its script can settle. Every `list_*`
+view gives tau-b +0.91 against the 8B ground truth and +0.67 against the
+tie-free 32B ground truth (Qwen3.5-Plus and GLM-5 swapped); `all_*` views are
+lower. Rankings derived from tor therefore describe our operationalizations,
+not the paper's metric.
 
-```text
-observation taxonomy
-action taxonomy
-path extraction
-cwd tracking
-path normalization
-alignment rules
-```
-
-explicitly.
+Do **not** add the paper's separate three-assistant-turn window to TOR unless
+upstream implementation confirms that it is part of the metric (it is used by
+egs_post, §6.6, not here).
 
 ---
 
