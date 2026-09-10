@@ -157,9 +157,7 @@ needs does not.
 | SCRF, 91-subcat views | +0.91, DS first, P 0.47-0.50 | -0.18, GLM first, P 0.11-0.18 | -0.18, GLM first, P 0.06-0.11 |
 
 SCRF recovers the ranking only with the gpt-oss-120b judge; with Qwen3-32B
-or GLM-4.6 it degrades to GLM-5 first. Judge agreement numbers (98.5 % on
-"is it a failure", 61 % on the 11 categories) are under Additional findings.
-The three-way agreement with GLM-4.6 is not analysed yet.
+or GLM-4.6 it degrades to GLM-5 first. Label-level agreement of the three judges is under Additional findings.
 
 ### Qwen3-32B student
 
@@ -183,10 +181,7 @@ tied at +0.91 above can be told apart. Judge gpt-oss-120b; q_S(32B) from the
 | error_retry (raw / turn-aware) | -1.00 / -0.67 | 0.00 | CL first | - |
 
 SCRF and cmd_error recover the full 32B ranking; traj_length and tor get top
-and bottom right but swap the middle pair, exactly the pair the 8B tie hid.
-So on the one benchmark that can separate them, the recovery-aware proxies
-beat pure length. SCRF does not beat cmd_error (both perfect); separating
-those two needs a teacher that errs a lot but does not recover.
+and bottom right but swap the middle pair.
 
 #### n=200
 
@@ -197,8 +192,6 @@ those two needs a teacher that errs a lot but does not recover.
 | rsr | 0.00 | 0.00 | CL > DS > GLM > Q35 |
 | SCRF, cmd_error, tor, egs, traj_length at n=200 vs the 32B GT | not tabulated (student-independent ones are the n=200 8B numbers re-scored against the 32B order; SCRF-32B exists only at n=1000) | | |
 
-The same-family bias (Qwen3.5-Plus first) persists with the larger Qwen
-student.
 
 ### TOR: reimplementation vs the paper
 
@@ -248,16 +241,16 @@ property of our operationalizations, not established for the paper's metric.
   | (any) | gpt-oss-120b | per-turn (old, batching artifact) | +0.55 | DS | 0.24 |
   | (any) | Qwen3-32B | per-turn (old) | +0.18 | Q35 ✗ | 0.07 |
 - **n matters: unstable at 200, stable at 1000.** At n=200, under task-bootstrap resampling most proxies' own teacher ranking is not reproduced in 80% of resamples, i.e. a different sample of tasks would likely give a different ranking (per-trajectory score variance within a teacher is as large as or larger than the variance between teacher means, so teacher identity is a coarse selection unit). Extending to n=1000 resolves this for the proxies that carry signal: SCRF (all views) and cmd_error reach P(top-1) 0.90-1.00, and cmd_error with the gpt-oss judge jumps from tau-b +0.55 (n=200) to +0.91, P=1.00 (n=1000). The proxies that were wrong at n=200 (the student-likelihood family) stay wrong at n=1000, so more tasks sharpen the verdict rather than rescuing weak proxies.
-- **Judge agreement is high on failure detection but low on the fine taxonomy** (two judges, Qwen3-32B vs gpt-oss-120b, identical commands):
+- **Judge agreement is high on failure detection, lower on the taxonomy** (three judges, gpt-oss-120b, Qwen3-32B and GLM-4.6-FP8, identical commands; n = commands that all three judged for that question; pairwise = mean over the three judge pairs):
 
-  | judgment | n | agreement |
-  |---|---|---|
-  | is it a failure? | 12,244 commands | 98.5% |
-  | recovered? (K=3) | 838 failures | 85.9% |
-  | which of the 11 categories | 1,381 failures | 61.0% |
-  | which of the 91 subcategories | 1,381 failures | 51.6% |
+  | judgment | n | all three agree | pairwise |
+  |---|---|---|---|
+  | is it a failure? | 9,308 | 98.5% | 99.0-99.1% |
+  | recovered? (K=3) | 798 | 84.8% | 88.1-91.0% |
+  | which of the 11 categories | 697 | 63.7% | 70.9-76.9% |
+  | which of the 91 subcategories | 697 | 59.3% | 67.6-72.5% |
 
-  so error/recovery signals are judge-robust, but the fine subcategory label is not, which is why SCRF is also reported at the 11-category level.
+  so error/recovery signals are judge-robust, but the category label is not, which is why SCRF is also reported at the 11-category level. Yet the ranking depends on the judge more than these numbers suggest (judge ablation above): with gpt-oss-120b SCRF recovers the ranking, with the other two it does not, so the disagreements are not random but shift the per-teacher error profiles.
 
 ## Layout
 
