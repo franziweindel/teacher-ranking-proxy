@@ -410,16 +410,16 @@ they do not appear in the view names.
   every command that is not an observation and not a bare `cd`.
 - *How close two paths must be to count as aligned.* `exact` = identical
   path; `strict` = identical, or the observed path is a directory containing
-  the action's path (the paper's three examples); `loose` = strict plus the
-  reverse containment and the same file name in different directories (the
-  original operationalization).
+  the action's path (the paper's three examples); `loose` = strict plus
+  reverse containment, where the observation targets a file and the action
+  targets the directory that contains it, plus the same file name in
+  different directories (the original operationalization).
 - *Which earlier turns an observation may come from.* Observations in the
   same response as the action never count: Terminus-2 types a response's
   whole command list and only then returns the screen, so the agent had not
   seen that output when it chose the action. `prevturn` = any earlier
   response; `turn1`, `turn2`, `turn3` = one of the k responses before the
-  action's. (The original single score also counted same-response
-  observations; it is retained only as `tor__v1_listloose.jsonl`.)
+  action's.
 - *How a command's target path is found.* One implementation, below.
 - *Per-trajectory mean or pooled ratio.* The teacher score is the mean of
   per-trajectory ratios (a trajectory with 2 actions weighs as much as one
