@@ -681,18 +681,16 @@ its analysis text, after the `{ "analysis": "` template of the Terminus-2
 JSON turn, so that the skipped "first token" is the first token the teacher
 chose and not the near-certain brace; the template tokens are excluded from
 every statistic. One token is skipped per step (`skip_tokens=1`, the paper's
-definition; the authors' run script defaults to 2). ASLEC-DROP is the mean
-log-probability over the step tokens except the first of every step.
-ASLEC-CASL is the mean over all step tokens with the step-length trend
-regressed out, below.
+definition; the authors' run script defaults to 2).
 
 The CASL regression: one observation per trajectory over all
 teachers; per trajectory M = mean log-probability over all step tokens,
 M_first = mean over the first token of each step, M_non = mean over the
 others, F = steps / tokens (the inverse mean step length). Least squares
 M ~ beta1 M_non + beta2 M_first + gamma F + intercept, then score = M -
-gamma F: the part of the mean log-probability that follows from step
-length is removed.
+gamma F. The first tokens stay in the score; only the part of the mean that
+follows from their share, i.e. from step length, is removed (DROP instead
+discards them).
 
 ---
 
