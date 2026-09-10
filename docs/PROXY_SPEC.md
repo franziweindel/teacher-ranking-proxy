@@ -449,16 +449,6 @@ backticks, parentheses) are discarded rather than guessed. A command can
 yield several paths; an action is supported if any of them aligns with any
 path of an earlier observation.
 
-**How TOR is scored.** Walking the events in order, every observation with a
-path is remembered. For each action, TOR counts it as supported if a
-remembered observation inside the window aligns with one of its paths; an
-action with no extractable path is never supported but stays in the
-denominator. TOR is the supported fraction per trajectory, averaged over the
-teacher's trajectories. This is done for all 24 combinations of action set,
-alignment rule and window in one pass, and `tor.jsonl` carries them as
-`score_views`, each reported separately by `evaluate_ranking.py`, together
-with the per-trajectory command, observation and turn counts.
-
 **Comparison with the paper (n=1000, per-teacher mean, %).**
 
 | view | DS | GLM | Q35 | CL | order |
