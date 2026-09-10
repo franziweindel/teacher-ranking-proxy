@@ -716,14 +716,12 @@ first, one it finds absurd scores badly on the second.
 
 Implementation: `compute_rsr` reimplements their `rsr_cal.py`
 (github.com/UmeanNever/RankSurprisalRatio @59a7c4c; it scores assistant
-spans only, so it already handles multi-round chat and agent data). On real
-trajectories our per-trajectory average rank and average surprisal match
-their script's numbers. Teacher score = mean of the per-trajectory average
-ranks over the mean of their average surprisals. Their script only computes
-the ratio; that low is good comes from the paper. Since
-`evaluate_ranking.py` ranks higher = better, the score is negated at
-scoring time (as for GRACE and SCAS); until 2026-09-10 it was not, so RSR
-was read backwards, which the numeric check could not catch.
+spans only, so it already handles multi-round chat and agent data) inside
+our shared student forward pass instead of running their standalone
+pipeline. On real trajectories our per-trajectory average rank and average
+surprisal match their script's numbers. Teacher score = mean of the
+per-trajectory average ranks over the mean of their average surprisals,
+negated because `evaluate_ranking.py` ranks higher = better.
 
 ---
 
