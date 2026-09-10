@@ -626,9 +626,17 @@ context, never scored. So compared to GRAPE two things change: the mean is
 taken per turn and then over turns instead of once over all tokens, and the
 context is truncated to the last k turns.
 
-k ∈ {1, 2, 4, 8}, one proxy per k (`local_nll_k1` ... `local_nll_k8`);
-global_nll is the full-history baseline. k is an agentic adaptation, not
-prescribed by the paper. Teacher turns are not regenerated or re-segmented.
+The window is the paper's: each step is conditioned on the prompt and the k
+immediately preceding steps, LocalLP(s_i) = mean_t log P(s_i^t | s_i^<t,
+s_{i-k..i-1}, x), and LALP is the plain mean of LocalLP over steps. The
+paper's baseline is GALP, the mean over all tokens with full context, which
+is our global_nll (§7.1). Two things are ours: the paper sets k as a share of
+the preceding steps (5 % to 75 %, small shares matched downstream
+performance, large ones converged to GALP), we use absolute k ∈ {1, 2, 4, 8}
+because agent trajectories have few, long turns, one proxy per k
+(`local_nll_k1` ... `local_nll_k8`); and the paper segments a response into
+reasoning steps itself, whereas we take the teacher's assistant turns as the
+steps without re-segmenting them.
 
 ---
 
