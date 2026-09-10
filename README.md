@@ -182,10 +182,10 @@ recover.
 
 Likelihood proxies under the 32B student (n=200, `docs/PROXY_RESULTS_n200.md`
 style run on `runs/terminal_lego-n200-s42/proxy_scores/Qwen__Qwen3-32B`):
-GRAPE, LALP k1-8, ASLEC-CASL all -0.33 (Q35 > GLM > CL > DS), ASLEC-DROP 0.00
-(Q35 > GLM > DS > CL), RSR 0.00 (CL > DS > GLM > Q35). GRAPE and LALP k1-k4 at n=1000 give the same -0.33. The same-family bias (Qwen3.5-Plus first) persists
-with the larger Qwen student. SCAS and GRACE for 32B are not yet computed (the
-n=200 rerun crashed on a multi-GPU indexing bug in SCAS, see To dos).
+GRAPE, LALP k1-8, ASLEC-CASL and ASLEC-DROP all -0.33 (Q35 > GLM > CL > DS),
+SCAS 0.00 (Q35 > GLM > DS > CL), RSR 0.00 (CL > DS > GLM > Q35). GRAPE and LALP k1-k4 at n=1000 give the same -0.33. The same-family bias (Qwen3.5-Plus first) persists
+with the larger Qwen student. GRACE for 32B is not computed (TRAK fp32
+gradients at 32B risk OOM on one GPU).
 
 ### n=200, Qwen3-8B student (smaller-sample snapshot)
 
