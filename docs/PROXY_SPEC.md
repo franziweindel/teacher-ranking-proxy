@@ -487,55 +487,35 @@ alignment changes little; the `all` action set and the one-turn window put
 Qwen3.5-Plus first. No view reproduces the paper's GLM-5 > Qwen3.5-Plus, and
 the three non-Claude teachers stay 2-3x above Table 3. TOR is therefore the
 one proxy here without a validated implementation; the remaining difference
-lies in the paper's action definition or path parsing, which only its script
-can settle. tau-b follows from the order: DS > Q35 > GLM > CL (`list_*`
-except turn1) is +0.91 on 8B and +0.67 on 32B; Q35 > DS > GLM > CL (all
-others) is +0.55 / +0.33.
+lies in the paper's action definition or path parsing.
 
 ---
 
 ## 6.6 Extended EGS proxy
 
-TOR captures primarily:
+TOR covers inspect → act. Terminal-Lego describes environment-grounded
+supervision more broadly as inspect → act → verify → adapt, so two further
+components are computed on the same events, with the same observation list,
+action set, path finding and alignment as TOR (§6.5), reported separately
+and never combined into a weighted score:
 
-```text
-inspect → act
-```
+- **egs_post**, act → verify. An action counts as verified if, within the
+  next three assistant responses, there is either an observation whose path
+  aligns with the action's path, or any test or build command (`pytest`,
+  `tox`, `unittest`, `make`, `ctest`), the one rule TOR does not have. Score
+  is verified actions over actions, per trajectory, averaged per teacher.
+- **egs_loop**, inspect → act → verify. An action counts if it satisfies both
+  the TOR condition and the egs_post condition. Same aggregation.
 
-but Terminal-Lego describes Environment-Grounded Supervision more broadly as:
+The pre-action component was dropped as identical to TOR; an adaptation
+component (keyword heuristic on the output after a failed action) was tried,
+showed no signal, and was removed 2026-08-26.
 
-```text
-inspect
-→ act
-→ verify outcome
-→ adapt based on outcome
-```
-
-Therefore additionally compute separate interpretable components:
-
-```text
-pre-action grounding rate
-post-action verification rate
-local adaptation/recovery rate
-```
-
-For post-action verification, check whether an action is followed by a relevant observation/testing step such as:
-
-```text
-rereading the modified file
-checking resulting filesystem state
-running a relevant test
-rerunning the affected command
-checking generated output
-```
-
-For adaptation, optionally measure whether subsequent behavior changes in response to an observed mismatch/error.
-
-Initially report these components **separately**.
-
-Do not immediately create an arbitrary weighted EGS score.
-
-Document exact temporal windows and matching rules.
+Both components still use the original TOR operationalization (`list`
+actions, `loose` alignment, observations from the same response counted on
+both the inspect and the verify side), not the §6.5 views. n=1000, Qwen3-8B:
+egs_post tau-b -0.18 (GLM-5 first, DeepSeek last), egs_loop +0.55
+(Qwen3.5-Plus first).
 
 ---
 
