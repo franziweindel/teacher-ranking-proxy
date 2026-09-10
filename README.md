@@ -22,7 +22,7 @@ is a snapshot/mirror of this folder.
 - ASLEC: https://arxiv.org/pdf/2604.06834
 - RSR: https://aclanthology.org/2026.acl-long.1950/
 - GRACE: https://arxiv.org/abs/2511.02833
-- SCAS: https://arxiv.org/abs/2605.26872
+- SCAS: https://arxiv.org/abs/2605.26872 (forward-only relative of GRACE: same gradient-decomposition idea, approximated from one forward pass; its paper reports it beating GRACE at lower cost; here the two rank the teachers identically)
 - traj_length, teacher_bench, cmd_error (error rate), error_retry: simple controls / the Terminal-Bench 2.0 command-error taxonomy (https://arxiv.org/abs/2601.11868)
 
 Listed in the spec but not implemented: CAR (https://arxiv.org/pdf/2411.07133,

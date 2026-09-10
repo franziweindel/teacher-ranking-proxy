@@ -782,7 +782,9 @@ arXiv:2605.26872
 
 Idea: like GRACE, prefer trajectories whose update on the student is
 cheap and coherent, but estimate it from one forward pass instead of
-gradients. For a linear layer the gradient is the loss signal times the
+gradients. The paper uses GRACE as its strongest baseline and reports
+beating it at a fraction of the cost (about a minute to score 1,000
+responses on a 7B student); here the two give identical teacher rankings. For a linear layer the gradient is the loss signal times the
 input activation, so the inner product of two tokens' gradients is about
 their losses times the similarity of their activations; SCAS uses the NLLs
 as the loss signals and the cosine between activations as the similarity.
