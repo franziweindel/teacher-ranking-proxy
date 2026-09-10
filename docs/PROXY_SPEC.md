@@ -738,7 +738,7 @@ arXiv:2511.02833
 Idea: a good teacher pushes the student in a consistent direction. Take
 the gradient each teacher trajectory would induce in the student, learn
 from most of them which directions this teacher usually pushes in, and
-check whether the remaining ones push the same way with a modest step.
+check whether the remaining ones push the same way.
 Low GRACE = they do, the teacher's updates generalize across tasks; high =
 new tasks send the student somewhere new or with oversized steps.
 
@@ -780,13 +780,30 @@ Student-Centric Answer Selection
 arXiv:2605.26872
 ```
 
-Originally dynamically selects responses based on changing student learning cost during SFT.
+Idea: like GRACE, prefer trajectories whose update on the student is
+cheap and coherent, but estimate it from one forward pass instead of
+gradients. For a linear layer the gradient is the loss signal times the
+input activation, so the inner product of two tokens' gradients is about
+their losses times the similarity of their activations; SCAS uses the NLLs
+as the loss signals and the cosine between activations as the similarity.
 
-Using its pre-update score as a static pre-SFT ranking is an **adaptation**.
+Implementation (`compute_scas`, official `metric_utils` called directly;
+one documented difference in the special-token mask). One forward pass of
+the pre-SFT student over the trajectory, collecting per token its NLL and
+its activation at the last layer's MLP up-projection input, scaled to unit
+length. A = the teacher's assistant tokens, Q = everything else (task text
+and terminal output). d_A, d_Q = mean NLL over A and over Q; AA = mean
+cosine between the activations of A tokens; AQ = mean cosine between A and
+Q activations. Learning cost S = (1 - lambda) d_A^2 AA + lambda d_A d_Q AQ
+with lambda = 0.5 (official default): the first term is how strongly the
+update reinforces itself, the second how much it interferes with the
+context. Lower is better, so the score is negated for `evaluate_ranking.py`.
 
-If implemented, compute the published pre-update learning-cost score for each trajectory and document the aggregation.
+Adaptations: the paper re-scores candidates every SFT round as the
+student changes, we score once on the pre-SFT student; the paper's A is
+one answer, ours is every assistant turn of the trajectory; the paper
+selects per prompt and has no teacher score, we take the mean over tasks.
 
-Advantage to GRACE is that we do not need to compute the actual graidents of the student model under teacher response. 
 ---
 
 ## 7.8 LARK
