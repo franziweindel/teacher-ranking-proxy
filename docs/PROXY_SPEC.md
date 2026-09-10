@@ -397,29 +397,34 @@ before editing it, listing a directory before creating a file inside it,
 reading a script before running it. Table 3 reports TOR per teacher:
 DeepSeek-V3.2 13.4 %, GLM-5 7.3 %, Qwen3.5-Plus 6.5 %, Claude Opus 4.6 2.5 %.
 
-**What the paper leaves open.** Which commands count as actions; how a
-command's target path is found; whether "before" includes earlier in the
-same turn; whether alignment is exact or allows containment or name matches;
-per-trajectory mean or pooled ratio.
+**What the paper leaves open.**
 
-**How the trajectory is read.** Every Terminus-2 assistant turn is a JSON
-object with a list of `commands`, each typed into one terminal. We split the
-turn into one event per executed command using the same per-command screen
-segments as cmd_error, so each event carries the command line, its own output,
-and the shell's working directory at that moment (taken from the echoed prompt
-line, otherwise from the task prompt plus `cd` tracking). Commands the screen
-did not show are dropped. The first word of the line, after stripping `sudo`,
-`env`, `timeout`, `VAR=` prefixes and directory prefixes, is the program name.
-A command is an *observation* if the program is in the paper's list (plus
-`pwd`, which we need for cwd tracking); it is an *action* if the program is in
-our list of state-changing programs (`sed tee cp mv rm mkdir touch chmod tar
-pip apt npm make gcc python node bash git patch ...`) or the line contains a
-`>` redirect; everything else is *other*. Target paths are taken from the
-command's tokens: anything containing `/`, `.` or `..`, a file suffix, a
-redirect target, or a positional operand of a program that takes paths;
-relative paths are made absolute with the current cwd; tokens containing
-shell expansions (`$`, backticks, parentheses) are discarded rather than
-guessed.
+- Which commands count as actions (only file edits, installs and script runs,
+  or every command that is not an observation).
+- How a command's target path is found from its text.
+- Whether an observation that the agent typed in the same response as the
+  action counts as "before". Terminus-2 sends a whole list of commands per
+  response and only then returns the screen, so the agent had not seen that
+  observation's output when it chose the action.
+- How close two paths must be to count as aligned: identical only, or also
+  a directory versus a file inside it, or merely the same file name in
+  different directories.
+- Whether the teacher score is the mean of per-trajectory ratios (a short
+  trajectory with 2 actions weighs as much as one with 40) or one pooled
+  ratio over all of a teacher's actions.
+
+**How commands are classified and paths found.** Commands and their outputs
+come from the same per-command screen segmentation as cmd_error (§6.3), one
+event per executed command with the shell's cwd at that moment. A command is
+an *observation* if its program is in the paper's list (plus `pwd`); an
+*action* if the program is in our list of state-changing programs (`sed tee
+cp mv rm mkdir touch chmod tar pip apt npm make gcc python node bash git
+patch ...`) or the line writes through a `>` redirect; everything else is
+*other*. The target path is any token that looks like a path (contains `/`,
+is `.` or `..`, has a file suffix, follows a redirect, or is a positional
+operand of a program that takes paths), made absolute with the current cwd.
+Tokens containing shell expansions (`$`, backticks, parentheses) are
+discarded rather than guessed.
 
 **How TOR is scored.** Walking the events in order, every observation with a
 path is remembered. For each action, TOR counts it as supported if any
