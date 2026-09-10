@@ -427,18 +427,26 @@ they do not appear in the view names.
   once for comparison: it shifts values by a few points and changes no
   ordering, so it is not a view.
 
-**How commands are classified and paths found.** Commands and their outputs
-come from the same per-command screen segmentation as cmd_error (§6.3), one
-event per executed command with the shell's cwd at that moment. A command is
-an *observation* if its program is in the paper's list (plus `pwd`); an
+**How commands are classified.** Commands and their outputs come from the
+same per-command screen segmentation as cmd_error (§6.3), one event per
+executed command with the shell's cwd at that moment. A command is an
+*observation* if its program is in the paper's list (plus `pwd`); an
 *action* if the program is in our list of state-changing programs (`sed tee
 cp mv rm mkdir touch chmod tar pip apt npm make gcc python node bash git
 patch ...`) or the line writes through a `>` redirect; everything else is
-*other*. The target path is any token that looks like a path (contains `/`,
-is `.` or `..`, has a file suffix, follows a redirect, or is a positional
-operand of a program that takes paths), made absolute with the current cwd.
-Tokens containing shell expansions (`$`, backticks, parentheses) are
-discarded rather than guessed.
+*other*.
+
+**How the target path is found.** The command line is split into shell
+tokens. A token is taken as a path if it contains `/`, is `.` or `..`, ends
+in a file suffix, directly follows a `>`, `>>` or `<` redirect, or is a
+positional operand of a program that takes paths (`cat`, `ls`, `cp`, `mv`,
+`python`, ...; for `sed` only the last operand, since its program text
+contains slashes). Relative paths are made absolute with the cwd of that
+command, `~` is expanded, trailing slashes are dropped, and `-`, `/dev/null`
+and option flags are ignored. Tokens containing shell expansions (`$`,
+backticks, parentheses) are discarded rather than guessed. A command can
+yield several paths; an action is supported if any of them aligns with any
+path of an earlier observation.
 
 **How TOR is scored.** Walking the events in order, every observation with a
 path is remembered. For each action, TOR counts it as supported if any
