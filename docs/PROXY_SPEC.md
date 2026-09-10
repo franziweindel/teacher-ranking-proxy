@@ -661,6 +661,21 @@ github.com/wangbing1416/ASLEC
 
 Map reasoning-step boundaries to Terminus-2 assistant/action turns and evaluate both variants.
 
+Implementation (`compute_aslec`, official `output_drop_score` /
+`output_causal_score` reimplemented and verified identical on real
+trajectories): a step is one assistant turn and "first token" is the first
+token of the turn (`skip_tokens=1`; the authors' driver defaults to 2).
+ASLEC-DROP is the mean log-probability over all assistant tokens except the
+first token of every turn. ASLEC-CASL fits, over all trajectories of all
+teachers, a linear regression of the GRAPE score (§7.1) on the first-token
+ratio, turns divided by assistant tokens, and subtracts the fitted effect of
+that ratio, so it is GRAPE with the turn-length trend removed. Note that a
+Terminus-2 turn starts with the JSON brace and the `analysis` key, so its
+first token is near-certain, not the low-probability step opener the paper
+has in mind; DROP is therefore close to GRAPE here, while CASL still acts as
+a turn-length correction. n=1000, 8B: DROP +0.18, CASL -0.18, both
+Qwen3.5-Plus first, as GRAPE.
+
 ---
 
 ## 7.5 RSR
