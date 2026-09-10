@@ -427,13 +427,14 @@ they do not appear in the view names.
   once for comparison: it shifts values by a few points and changes no
   ordering, so it is not a view.
 
-**How commands are classified.** Commands and their outputs come from the
-same per-command screen segmentation as cmd_error (§6.3), one event per
-executed command with the shell's cwd at that moment. A command is an
-*observation* if its program is in the paper's list (plus `pwd`); an
-*action* if the program is in our list of state-changing programs (`sed tee
-cp mv rm mkdir touch chmod tar pip apt npm make gcc python node bash git
-patch ...`) or the line writes through a `>` redirect; everything else is
+**How commands are classified.** Commands are the per-command screen
+segments of cmd_error (§6.3). Classification is rule-based, no judge: the
+command's program name (first word after `sudo`, `env`, `timeout` and
+`VAR=` prefixes) is looked up in two fixed lists. In the paper's observation
+list (`cat ls find grep head wc diff stat`, plus `pwd`) it is an
+*observation*; in our list of state-changing programs (`sed tee cp mv rm
+mkdir touch chmod tar pip apt npm make gcc python node bash git patch ...`),
+or if the line writes through a `>` redirect, it is an *action*; otherwise
 *other*.
 
 **How the target path is found.** The command line is split into shell
