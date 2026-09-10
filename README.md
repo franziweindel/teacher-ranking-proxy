@@ -36,7 +36,8 @@ For what each proxy computes and how, see `docs/PROXY_SPEC.md`.
 
 Hypothesis: a useful teacher is one whose trajectories demonstrate
 recovery behavior in the regions where the target student empirically
-struggles.
+struggles, i.e. a teacher that runs into the same kinds of errors the
+student runs into, but recovers from them where the student does not.
 
 Pipeline (same for student and teacher trajectories):
 

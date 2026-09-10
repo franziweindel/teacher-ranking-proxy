@@ -874,7 +874,7 @@ Treat this analysis as exploratory because there is only one published teacher p
 
 **Student-Conditioned Recovery Fit (SCRF)** is a new experimental proxy proposed in this project, not an established published method.
 
-**Hypothesis:** A useful teacher provides successful recovery demonstrations for the command-level error modes on which the target student tends to struggle.
+**Hypothesis:** A useful teacher provides successful recovery demonstrations for the command-level error modes on which the target student tends to struggle, i.e. a teacher that runs into the same kinds of errors the student runs into, but recovers from them where the student does not.
 
 Start from the formulation below, but treat it as a proxy to develop and validate rather than a fixed final metric. The agent may refine the definitions, normalization, recovery window, or aggregation based on inspectable intermediate evidence. Do **not** modify the proxy based on agreement with the known teacher ranking.
 
